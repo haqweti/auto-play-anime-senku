@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.1
+// @version      3.1.1
 // @description  Автозапуск, умная очередь, фикс паузы, поиск серий по ссылкам и API heartbeat
+// @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
 // @updateURL    https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js
