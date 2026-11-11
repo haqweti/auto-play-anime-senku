@@ -18,6 +18,9 @@
 
 Для работы требуется менеджер пользовательских скриптов, например [Tampermonkey](https://www.tampermonkey.net/).
 
+<img width="484" height="242" alt="{48275A7E-EDCA-49FF-A428-4766E6E9662F}" src="https://github.com/user-attachments/assets/d3011d02-a61f-4466-99d0-35d41b4d69c3" />
+
+
 1. Установите Tampermonkey в ваш браузер.
 2. Нажмите на кнопку ниже, чтобы скачать файл скрипта:
 
