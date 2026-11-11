@@ -2,9 +2,11 @@
   <a href="https://senku.one" target="_blank">
     <img src="https://img.shields.io/badge/Сайт-senku.one-1a1a1a?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Сайт Senku">
   </a>
+  &nbsp;&nbsp;
   <a href="https://t.me/Senkuone" target="_blank">
     <img src="https://img.shields.io/badge/Telegram-Канал-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Канал">
   </a>
+  &nbsp;&nbsp;
   <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js">
     <img src="https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white" alt="Установить скрипт">
   </a>
