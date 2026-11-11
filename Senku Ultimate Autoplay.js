@@ -1,10 +1,12 @@
 // ==UserScript==
-// @name         Senku Ultimate Autoplay (v27.0 - JSDoc Type-Safe)
+// @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      27.0
-// @description  Автозапуск, умная очередь, выдвижная панель (с типами)
+// @version      3.0
+// @description  Автозапуск, умная очередь, фикс паузы, поиск серий по ссылкам и API heartbeat
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
+// @updateURL    https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js
+// @downloadURL  https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js
 // @grant        none
 // ==/UserScript==
 
@@ -14,30 +16,19 @@
 (function() {
     'use strict';
 
-    if (window.top !== window.self) return;
-    if (!window.location.href.includes('/watch')) return;
-
-    /**
-     * @typedef {Object} QueueItem
-     * @property {string} url - Ссылка на плеер
-     * @property {string} title - Название аниме
-     * @property {string} image - Ссылка на постер
-     * @property {number} startEp - Номер серии, с которой начнется просмотр
-     * @property {number|string} totalEps - Всего серий (или '?')
-     */
+    if (window.top !== window.self) return; 
+    if (!window.location.href.includes('/watch')) return; 
 
     const STORAGE_KEY = 'senku_autonext_enabled';
     const VOLUME_KEY = 'senku_autonext_volume';
     const QUEUE_KEY = 'senku_autonext_queue';
-    const PANEL_OPEN_KEY = 'senku_panel_open';
-
-    let needsUserClickToPlay = false;
+    const PANEL_OPEN_KEY = 'senku_panel_open'; 
+    
+    let needsUserClickToPlay = false; 
     let userInteracted = false;
+    let heartbeatTimer = null;
+    let hasStartedCurrentVideo = false; 
 
-    /**
-     * @param {string} context
-     * @param {Error|any} error
-     */
     function logError(context, error) {
         console.error(`\n🛑🛑🛑 [SENKU SKIP ERROR] 🛑🛑🛑\nКонтекст: ${context}\nОшибка: ${error.message || error}\nСтек:`, error.stack || 'Нет стека');
         if (statusText) {
@@ -47,20 +38,15 @@
     }
 
     if (localStorage.getItem(STORAGE_KEY) === null) localStorage.setItem(STORAGE_KEY, 'true');
-
+    
     let savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) || '1.0');
     if (isNaN(savedVolume)) savedVolume = 1.0;
 
-    /** @type {QueueItem[]} */
+    /** @type {Array<any>} */
     let queue = [];
     try {
         const saved = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-        queue = saved.map((/** @type {any} */ item) => {
-            if (typeof item === 'string') {
-                return { url: item, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' };
-            }
-            return item;
-        });
+        queue = saved.map(item => typeof item === 'string' ? { url: item, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' } : item);
     } catch(e) {}
 
     // --- 1. СТИЛИ ---
@@ -74,58 +60,28 @@
 
     const style = document.createElement('style');
     style.textContent = `
-        /* --- ГЛАВНАЯ ПАНЕЛЬ --- */
         #senku-autonext-panel {
-            position: fixed !important;
-            top: 15px !important;
-            right: 15px !important;
-            left: auto !important;
-            bottom: auto !important;
-            background: rgba(22, 22, 22, 0.92) !important;
-            backdrop-filter: blur(22px) saturate(150%) !important;
-            -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
-            color: #fff !important;
-            padding: 6px 8px !important;
-            border-radius: 16px !important;
-            z-index: 2147483647 !important;
-            font-family: "Unbounded", system-ui, sans-serif !important;
-            font-size: 11px !important;
-            font-weight: 600 !important;
-            display: flex !important;
-            flex-direction: row-reverse !important;
-            align-items: center !important;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
-            border: 1px solid rgba(255,255,255,0.06) !important;
-            height: 40px !important;
-            box-sizing: border-box !important;
-            transition: box-shadow 0.3s, border-color 0.3s !important;
-            pointer-events: auto !important;
-            user-select: none;
-            overflow: hidden;
+            position: fixed !important; top: 15px !important; right: 15px !important; left: auto !important; bottom: auto !important;
+            background: rgba(22, 22, 22, 0.92) !important; backdrop-filter: blur(22px) saturate(150%) !important; -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+            color: #fff !important; padding: 6px 8px !important; border-radius: 16px !important;
+            z-index: 2147483647 !important; font-family: "Unbounded", system-ui, sans-serif !important; 
+            font-size: 11px !important; font-weight: 600 !important; display: flex !important; 
+            flex-direction: row-reverse !important; align-items: center !important; 
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important; border: 1px solid rgba(255,255,255,0.06) !important;
+            height: 40px !important; box-sizing: border-box !important; 
+            transition: box-shadow 0.3s, border-color 0.3s !important; pointer-events: auto !important; user-select: none; overflow: hidden;
         }
         #senku-autonext-panel:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8) !important; border-color: rgba(255,255,255,0.15) !important; }
 
-        #senku-trigger-btn {
-            display: flex; align-items: center; justify-content: center;
-            width: 28px; height: 28px; flex-shrink: 0;
-            border-radius: 8px; cursor: pointer;
-            transition: background 0.2s;
-        }
+        #senku-trigger-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
         #senku-trigger-btn:hover { background: rgba(255,255,255,0.1); }
-
+        
         .senku-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; transition: opacity 0.2s, transform 0.3s; cursor: pointer; flex-shrink: 0; }
         #senku-trigger-btn:hover .senku-icon { opacity: 1; stroke: #ff3b47; }
         #senku-autonext-panel.collapsed #senku-trigger-btn .senku-icon { transform: rotate(180deg); }
 
-        #senku-panel-content {
-            display: flex; align-items: center; gap: 10px;
-            max-width: 0; opacity: 0; overflow: hidden;
-            transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.4s;
-            margin-right: 0;
-        }
-        #senku-autonext-panel:not(.collapsed) #senku-panel-content {
-            max-width: 500px; opacity: 1; margin-right: 8px;
-        }
+        #senku-panel-content { display: flex; align-items: center; gap: 10px; max-width: 0; opacity: 0; overflow: hidden; transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.4s; margin-right: 0; }
+        #senku-autonext-panel:not(.collapsed) #senku-panel-content { max-width: 500px; opacity: 1; margin-right: 8px; }
 
         #senku-status-text { color: rgba(255, 255, 255, 0.7) !important; font-size: 10.5px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; letter-spacing: 0.02em; transition: color 0.3s; white-space: nowrap; }
         #senku-status-text.error { color: #ff3b47 !important; }
@@ -143,45 +99,23 @@
         #senku-volume-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.22); outline: none; cursor: pointer; background-image: linear-gradient(#ff3b47, #ff3b47); background-size: 100% 100%; background-repeat: no-repeat; flex-shrink: 0; }
         #senku-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); transition: transform 0.1s; }
         #senku-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
-
+        
         .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
-
+        
         .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
         .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
 
-        /* --- ВЫДВИЖНАЯ ПАНЕЛЬ ОЧЕРЕДИ --- */
-        #senku-queue-modal {
-            position: fixed !important;
-            top: 65px !important;
-            right: 15px !important;
-            left: auto !important;
-            transform: translateY(-10px) !important;
-            opacity: 0;
-            pointer-events: none;
-            background: rgba(22, 22, 22, 0.98) !important;
-            backdrop-filter: blur(25px) saturate(150%) !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
-            border-radius: 20px !important;
-            padding: 20px !important;
-            z-index: 2147483646 !important;
-            color: #fff !important;
-            font-family: "Unbounded", system-ui, sans-serif !important;
-            font-size: 12px !important;
-            width: 420px !important;
-            max-width: 90vw !important;
-            max-height: calc(100vh - 85px) !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 15px !important;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9) !important;
+        #senku-queue-modal { 
+            position: fixed !important; top: 65px !important; right: 15px !important; left: auto !important;
+            transform: translateY(-10px) !important; opacity: 0; pointer-events: none;
+            background: rgba(22, 22, 22, 0.98) !important; backdrop-filter: blur(25px) saturate(150%) !important; 
+            border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 20px !important; padding: 20px !important; 
+            z-index: 2147483646 !important; color: #fff !important; font-family: "Unbounded", system-ui, sans-serif !important; 
+            font-size: 12px !important; width: 420px !important; max-width: 90vw !important; max-height: calc(100vh - 85px) !important; 
+            display: flex !important; flex-direction: column !important; gap: 15px !important; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9) !important;
             transition: opacity 0.3s ease, transform 0.3s ease !important;
         }
-
-        #senku-queue-modal.visible {
-            opacity: 1;
-            transform: translateY(0) !important;
-            pointer-events: auto;
-        }
+        #senku-queue-modal.visible { opacity: 1; transform: translateY(0) !important; pointer-events: auto; }
 
         .senku-queue-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; }
         .senku-queue-close { cursor: pointer; color: rgba(255,255,255,0.5); font-size: 18px; transition: color 0.2s; }
@@ -210,14 +144,12 @@
     document.head.appendChild(style);
 
     // --- 2. ЭЛЕМЕНТЫ ПАНЕЛИ ---
-    /** @type {HTMLDivElement} */
     const panel = document.createElement('div');
     panel.id = 'senku-autonext-panel';
 
     const isPanelOpen = localStorage.getItem(PANEL_OPEN_KEY) !== 'false';
     if (!isPanelOpen) panel.classList.add('collapsed');
 
-    /** @type {HTMLDivElement} */
     const triggerBtn = document.createElement('div');
     triggerBtn.id = 'senku-trigger-btn';
     const iconPlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -226,11 +158,9 @@
     iconPlay.innerHTML = '<polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line>';
     triggerBtn.appendChild(iconPlay);
 
-    /** @type {HTMLDivElement} */
     const contentWrap = document.createElement('div');
     contentWrap.id = 'senku-panel-content';
 
-    /** @type {HTMLSpanElement} */
     const statusText = document.createElement('span');
     statusText.id = 'senku-status-text';
     statusText.innerText = 'Ожидание...';
@@ -244,8 +174,7 @@
     volIcon.setAttribute('class', 'senku-vol-icon');
     volIcon.setAttribute('viewBox', '0 0 24 24');
     volIcon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>';
-
-    /** @type {HTMLInputElement} */
+    
     const volSlider = document.createElement('input');
     volSlider.type = 'range';
     volSlider.id = 'senku-volume-slider';
@@ -258,6 +187,17 @@
         savedVolume = parseFloat(target.value);
         target.style.backgroundSize = `${savedVolume * 100}% 100%`;
         localStorage.setItem(VOLUME_KEY, String(savedVolume));
+        
+        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+        if (iframe && iframe.contentDocument) {
+            const video = /** @type {HTMLVideoElement|null} */ (iframe.contentDocument.querySelector('video'));
+            if (video) {
+                video.dataset.senkuProgrammaticVol = 'true'; 
+                video.volume = savedVolume;
+                video.muted = (savedVolume === 0);
+                setTimeout(() => { video.dataset.senkuProgrammaticVol = 'false'; }, 50);
+            }
+        }
     });
 
     volContainer.appendChild(volIcon);
@@ -268,8 +208,7 @@
     iconQueue.setAttribute('viewBox', '0 0 24 24');
     iconQueue.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>';
     iconQueue.title = "Очередь воспроизведения";
-
-    /** @type {HTMLButtonElement} */
+    
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'senku-toggle';
 
@@ -291,17 +230,16 @@
         updateButtonState();
     });
 
-    contentWrap.appendChild(statusText);
+    contentWrap.appendChild(statusText); 
     contentWrap.appendChild(divider);
-    contentWrap.appendChild(volContainer);
-    contentWrap.appendChild(iconQueue);
+    contentWrap.appendChild(volContainer); 
+    contentWrap.appendChild(iconQueue); 
     contentWrap.appendChild(toggleBtn);
 
     panel.appendChild(triggerBtn);
     panel.appendChild(contentWrap);
 
     // --- 3. МОДАЛКА ОЧЕРЕДИ ---
-    /** @type {HTMLDivElement} */
     const queueModal = document.createElement('div');
     queueModal.id = 'senku-queue-modal';
     queueModal.innerHTML = `
@@ -330,16 +268,11 @@
     }
 
     // --- 4. ПАРСЕР НАЗВАНИЙ И СЕРИЙ ---
-    /**
-     * @param {string} originalUrl
-     * @returns {Promise<QueueItem>}
-     */
     async function fetchAnimeInfo(originalUrl) {
         let title = 'Загрузка...';
         let image = '';
         let id = '';
         let startEp = 1;
-        /** @type {number|string} */
         let totalEps = '?';
 
         const idMatch = originalUrl.match(/\/anime\/(\d+)/) || originalUrl.match(/\/watch\/(\d+)/) || originalUrl.match(/[?&]id=(\d+)/);
@@ -351,7 +284,7 @@
         let finalUrl = originalUrl;
         if (id) {
             finalUrl = `${window.location.origin}/watch/${id}?episode=${startEp}&season=1`;
-
+            
             try {
                 const res = await fetch(`${window.location.origin}/anime/${id}`);
                 const text = await res.text();
@@ -388,15 +321,15 @@
 
     function renderQueue() {
         queueList.innerHTML = '';
-        if (queue.length === 0) {
-            queueList.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">Очередь пуста</div>';
-            return;
+        if (queue.length === 0) { 
+            queueList.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">Очередь пуста</div>'; 
+            return; 
         }
-
+        
         queue.forEach((item, index) => {
             const el = document.createElement('div');
             el.className = 'senku-queue-item';
-
+            
             const epText = `Серия ${item.startEp || 1}` + (item.totalEps && item.totalEps !== '?' ? ` (Всего: ${item.totalEps})` : '');
 
             el.innerHTML = `
@@ -411,30 +344,15 @@
                     <button class="senku-queue-btn delete">🗑</button>
                 </div>
             `;
-
+            
             const upBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.up'));
             const downBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.down'));
             const delBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.delete'));
 
-            upBtn.addEventListener('click', () => {
-                if (index > 0) {
-                    [queue[index - 1], queue[index]] = [queue[index], queue[index - 1]];
-                    saveQueue();
-                }
-            });
-
-            downBtn.addEventListener('click', () => {
-                if (index < queue.length - 1) {
-                    [queue[index + 1], queue[index]] = [queue[index], queue[index + 1]];
-                    saveQueue();
-                }
-            });
-
-            delBtn.addEventListener('click', () => {
-                queue.splice(index, 1);
-                saveQueue();
-            });
-
+            upBtn.addEventListener('click', () => { if (index > 0) { [queue[index - 1], queue[index]] = [queue[index], queue[index - 1]]; saveQueue(); } });
+            downBtn.addEventListener('click', () => { if (index < queue.length - 1) { [queue[index + 1], queue[index]] = [queue[index], queue[index + 1]]; saveQueue(); } });
+            delBtn.addEventListener('click', () => { queue.splice(index, 1); saveQueue(); });
+            
             queueList.appendChild(el);
         });
     }
@@ -445,12 +363,12 @@
         if (!rawUrl) return;
         if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
         try {
-            new URL(rawUrl);
+            new URL(rawUrl); 
             queueInput.value = '';
             const newItem = { url: rawUrl, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' };
-            queue.push(newItem);
+            queue.push(newItem); 
             saveQueue();
-
+            
             fetchAnimeInfo(rawUrl).then(info => {
                 const idx = queue.indexOf(newItem);
                 if (idx !== -1) {
@@ -488,30 +406,164 @@
         localStorage.setItem(PANEL_OPEN_KEY, String(isNowOpen));
     });
 
-    // --- 6. АВТОМАТИЗАЦИЯ И ТИХИЙ ЗВУК ---
-    let lastTime = 0;
-    let isProcessing = false;
-    /** @type {HTMLVideoElement|null} */
-    let lastVideoEl = null;
-    let pauseActionState = 0;
-    let pauseActionTime = 0;
+    // --- 6. ФУНКЦИИ ИЗ ПУЛЛ-РЕКВЕСТА RA9GE ---
+    
+    /**
+     * @param {string} href
+     * @returns {{id: string, ep: number}|null}
+     */
+    function parseWatchHref(href) {
+        try {
+            const u = new URL(href, window.location.origin);
+            const path = u.pathname.match(/\/watch\/(\d+)(?:\/(\d+))?/);
+            if (!path) return null;
+            const ep = path[2] || u.searchParams.get('episode');
+            if (!ep) return null;
+            return { id: path[1], ep: parseInt(ep, 10) };
+        } catch (e) {
+            return null;
+        }
+    }
 
     /**
-     * @param {string} text
-     * @param {'normal'|'error'|'active'} [type='normal']
+     * @param {HTMLIFrameElement} iframe
+     * @returns {number}
      */
+    function getCurrentEpisode(iframe) {
+        const fromIframe = iframe.src.match(/[?&]episode=(\d+)/) || iframe.src.match(/[?&]ep=(\d+)/);
+        if (fromIframe) return parseInt(fromIframe[1], 10);
+        const fromPage = parseWatchHref(window.location.href);
+        return fromPage ? fromPage.ep : 1;
+    }
+
+    /**
+     * @param {number} ep
+     * @returns {HTMLAnchorElement|null}
+     */
+    function findEpisodeLink(ep) {
+        const current = parseWatchHref(window.location.href);
+        const links = Array.from(document.querySelectorAll('a[href*="/watch"]'));
+        for (const a of links) {
+            const info = parseWatchHref(/** @type {HTMLAnchorElement} */ (a).href);
+            if (!info || info.ep !== ep) continue;
+            if (current && info.id !== current.id) continue;
+            return /** @type {HTMLAnchorElement} */ (a);
+        }
+        return null;
+    }
+
+    /** @returns {number|string} */
+    function getTotalEpisodes() {
+        const heads = Array.from(document.querySelectorAll('h2, h3'));
+        for (const h of heads) {
+            const m = h.textContent?.match(/Серии\s*(\d+)/i);
+            if (m) return parseInt(m[1], 10);
+        }
+        const nums = new Set();
+        document.querySelectorAll('a[href*="/watch"]').forEach(a => {
+            const info = parseWatchHref(/** @type {HTMLAnchorElement} */ (a).href);
+            if (info) nums.add(info.ep);
+        });
+        return nums.size > 0 ? nums.size : '?';
+    }
+
+    /**
+     * @param {HTMLAnchorElement} link
+     * @param {number} fromEp
+     */
+    function openEpisode(link, fromEp) {
+        const target = link.href;
+        clickElement(link);
+        setTimeout(() => {
+            const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+            if (!iframe || getCurrentEpisode(iframe) === fromEp) window.location.href = target;
+        }, 3000);
+    }
+
+    // --- 7. API HEARTBEAT И АВТОМАТИЗАЦИЯ ---
+    function getAnimeId() {
+        const match = window.location.pathname.match(/\/watch\/(\d+)/);
+        return match ? match[1] : '';
+    }
+
+    async function sendHeartbeat(video, animeId, episode) {
+        try {
+            await fetch('/api/v2/watch/heartbeat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    anime_id: animeId,
+                    episode: episode,
+                    time: Math.floor(video.currentTime),
+                    duration: Math.floor(video.duration)
+                })
+            });
+        } catch (e) {}
+    }
+
+    function startHeartbeat(video, animeId, episode) {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        sendHeartbeat(video, animeId, episode);
+        heartbeatTimer = setInterval(() => sendHeartbeat(video, animeId, episode), 15000);
+    }
+
+    function applyPauseFix(video) {
+        if (video.dataset.senkuPauseFixed) return;
+        video.dataset.senkuPauseFixed = 'true';
+
+        let lastValidTime = 0;
+        
+        video.addEventListener('timeupdate', () => {
+            if (!video.paused) lastValidTime = video.currentTime;
+        });
+
+        video.addEventListener('pause', () => {
+            if (lastValidTime > 1) {
+                const timeToRestore = lastValidTime;
+                const restore = () => {
+                    if (video.paused && video.currentTime < 1) {
+                        video.currentTime = timeToRestore;
+                    }
+                };
+                setTimeout(restore, 10);
+                setTimeout(restore, 100);
+                setTimeout(restore, 500);
+            }
+        });
+    }
+
+    function applyVolumeSync(video) {
+        if (video.dataset.senkuVolSynced) return;
+        video.dataset.senkuVolSynced = 'true';
+
+        video.addEventListener('volumechange', () => {
+            if (video.dataset.senkuProgrammaticVol === 'true') return;
+            
+            const currentVol = video.muted ? 0 : video.volume;
+            if (Math.abs(currentVol - savedVolume) > 0.05) {
+                savedVolume = currentVol;
+                localStorage.setItem(VOLUME_KEY, String(savedVolume));
+                volSlider.value = String(savedVolume);
+                volSlider.style.backgroundSize = `${savedVolume * 100}% 100%`;
+            }
+        });
+    }
+
+    let lastTime = 0;
+    let isProcessing = false;
+    let lastVideoEl = null; 
+    let pauseActionState = 0; 
+    let pauseActionTime = 0;
+
     function updateStatus(text, type = 'normal') {
         if (!statusText) return;
-        statusText.innerText = text;
+        statusText.innerText = text; 
         statusText.className = '';
         if (type === 'error') statusText.classList.add('error');
         else if (type === 'active') statusText.classList.add('active');
     }
 
-    /**
-     * @param {HTMLElement|null} el
-     * @returns {boolean}
-     */
     function clickElement(el) {
         if (!el) return false;
         const rect = el.getBoundingClientRect();
@@ -527,69 +579,73 @@
         if (!iframe) return;
         try {
             const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
-            if (video && video.paused) {
-                video.play().catch(() => {});
-                updateStatus('▶️ Запущено кликом!', 'active');
+            if (video && video.paused) { 
+                video.play().catch(() => {}); 
+                updateStatus('▶️ Запущено кликом!', 'active'); 
             }
         } catch(e) {}
     }, { capture: true });
-
-    function forceVolume() {
-        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
-        if (!iframe) return;
-        try {
-            const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
-            if (video && !video.paused && video.currentTime > 0.5) {
-                if (Math.abs(video.volume - savedVolume) > 0.01) {
-                    video.volume = savedVolume;
-                }
-                if (savedVolume === 0) {
-                    video.muted = true;
-                } else if (video.muted && userInteracted) {
-                    video.muted = false;
-                }
-            }
-        } catch(e) {}
-    }
-
-    setInterval(forceVolume, 200);
 
     setInterval(() => {
         if (localStorage.getItem(STORAGE_KEY) === 'false') return;
         const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
         if (!iframe) return;
-
+        
         try {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
             if (!iframeDoc) return;
 
-            const epMatch = iframe.src.match(/episode=(\d+)/) || iframe.src.match(/ep=(\d+)/);
-            const currentEp = epMatch ? parseInt(epMatch[1], 10) : 1;
+            const currentEp = getCurrentEpisode(iframe);
+            const animeId = getAnimeId();
 
             const video = /** @type {HTMLVideoElement|null} */ (iframeDoc.querySelector('video'));
             if (!video) return;
 
+            applyPauseFix(video);
+            applyVolumeSync(video);
+
             if (video !== lastVideoEl) {
-                lastVideoEl = video; isProcessing = false; lastTime = 0; pauseActionState = 0; pauseActionTime = 0;
+                lastVideoEl = video; 
+                isProcessing = false; 
+                lastTime = 0; 
+                pauseActionState = 0; 
+                pauseActionTime = 0;
                 needsUserClickToPlay = false;
+                hasStartedCurrentVideo = false; 
             }
 
-            const sideMenuLinks = Array.from(document.querySelectorAll('a')).filter(a => a.href.includes('/watch') && /Серия\s*\d+/i.test(a.textContent));
-            const totalEps = sideMenuLinks.length > 0 ? sideMenuLinks.length : '?';
+            if (video.currentTime > 2) {
+                hasStartedCurrentVideo = true;
+            }
+
+            if (!video.paused && !video.ended && video.currentTime > 0 && animeId) {
+                if (!heartbeatTimer) startHeartbeat(video, animeId, currentEp);
+            } else {
+                if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+            }
+
+            const totalEps = getTotalEpisodes();
             const volText = savedVolume === 0 ? 'Mute' : `${Math.round(savedVolume * 100)}%`;
 
             if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5)) {
                 if (isProcessing) return;
                 isProcessing = true;
-
-                const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
-                let card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
-
-                if (card && card.nextElementSibling) {
+                
+                const nextLink = findEpisodeLink(currentEp + 1);
+                
+                if (nextLink) {
                     updateStatus(`Включаю ${currentEp + 1}...`, 'active');
-                    clickElement(/** @type {HTMLElement} */(card.nextElementSibling));
+                    openEpisode(nextLink, currentEp);
                 } else {
-                    if (queue.length > 0) {
+                    // Fallback: если по ссылкам не нашли, пробуем старый метод через "Сейчас смотришь"
+                    const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
+                    const card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
+                    const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
+
+                    if (nextCard) {
+                        updateStatus(`Включаю ${currentEp + 1}...`, 'active');
+                        clickElement(nextCard);
+                    } else if (queue.length > 0) {
                         const nextItem = queue.shift();
                         if (nextItem) {
                             saveQueue();
@@ -600,77 +656,85 @@
                         updateStatus(`Конец сезона/очереди`, 'error');
                     }
                 }
-                setTimeout(() => { isProcessing = false; }, 5000);
+                setTimeout(() => { isProcessing = false; }, 5000); 
                 return;
             }
 
             if (video.paused && !video.ended) {
-                if (pauseActionState === 0) {
-                    const resumeBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.resume-continue'));
-                    const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframe.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
-
-                    if (isResumeVisible && resumeBtn) {
-                        const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
-                        updateStatus(`Продолжаю: ${timeMatch ? timeMatch[0] : ''}`, 'active');
-                        clickElement(resumeBtn);
-                    } else {
-                        updateStatus(`Пауза (жду клика)...`, 'error');
-                    }
-                    pauseActionState = 1;
-                    pauseActionTime = Date.now();
-                }
-                else if (pauseActionState === 1) {
-                    if (Date.now() - pauseActionTime > 3000) {
-                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
-                        updateStatus(`Жму Play...`, 'active');
-                        if (playBtn) clickElement(playBtn);
-                        else clickElement(video);
-
-                        video.play().catch(() => {
-                            needsUserClickToPlay = true;
-                            updateStatus(`Кликни по сайту!`, 'error');
-                        });
-                        pauseActionState = 2;
+                if (hasStartedCurrentVideo) {
+                    updateStatus(`Пауза (${currentEp}/${totalEps})`, 'normal');
+                    pauseActionState = 0; 
+                    pauseActionTime = 0;
+                } else {
+                    if (pauseActionState === 0) {
+                        const resumeBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.resume-continue'));
+                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframe.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
+                        
+                        if (isResumeVisible && resumeBtn) {
+                            const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
+                            updateStatus(`Продолжаю: ${timeMatch ? timeMatch[0] : ''}`, 'active');
+                            clickElement(resumeBtn);
+                        } else {
+                            updateStatus(`Ожидание старта...`, 'error');
+                        }
+                        pauseActionState = 1;
                         pauseActionTime = Date.now();
-                    } else {
-                        updateStatus(`Загрузка...`, 'normal');
+                    } 
+                    else if (pauseActionState === 1) {
+                        if (Date.now() - pauseActionTime > 3000) {
+                            const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                            updateStatus(`Жму Play...`, 'active');
+                            if (playBtn) clickElement(playBtn);
+                            else clickElement(video);
+                            
+                            video.play().catch(() => {
+                                needsUserClickToPlay = true;
+                                updateStatus(`Кликни по сайту!`, 'error');
+                            });
+                            pauseActionState = 2;
+                            pauseActionTime = Date.now();
+                        } else {
+                            updateStatus(`Загрузка...`, 'normal');
+                        }
                     }
-                }
-                else if (pauseActionState === 2) {
-                    if (Date.now() - pauseActionTime > 3000) {
-                        updateStatus(`Пинаю видео...`, 'active');
-                        clickElement(video);
-                        video.play().catch(() => {
-                            needsUserClickToPlay = true;
-                            updateStatus(`Кликни по сайту!`, 'error');
-                        });
-                        pauseActionState = 3;
-                        pauseActionTime = Date.now();
-                    } else {
-                        updateStatus(`Загрузка...`, 'normal');
+                    else if (pauseActionState === 2) {
+                        if (Date.now() - pauseActionTime > 3000) {
+                            updateStatus(`Пинаю видео...`, 'active');
+                            clickElement(video);
+                            video.play().catch(() => {
+                                needsUserClickToPlay = true;
+                                updateStatus(`Кликни по сайту!`, 'error');
+                            });
+                            pauseActionState = 3;
+                            pauseActionTime = Date.now();
+                        } else {
+                            updateStatus(`Загрузка...`, 'normal');
+                        }
                     }
-                }
-                else if (pauseActionState === 3) {
-                    const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
-                    if (wait <= 0) {
-                        updateStatus(`Повторный Play...`, 'active');
-                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
-                        if (playBtn) clickElement(playBtn);
-                        else clickElement(video);
-                        video.play().catch(() => {});
-                        pauseActionState = 2;
-                        pauseActionTime = Date.now();
-                    } else {
-                        updateStatus(`Жду ${wait}с...`, 'error');
+                    else if (pauseActionState === 3) {
+                        const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
+                        if (wait <= 0) {
+                            updateStatus(`Повторный Play...`, 'active');
+                            const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                            if (playBtn) clickElement(playBtn);
+                            else clickElement(video);
+                            video.play().catch(() => {});
+                            pauseActionState = 2; 
+                            pauseActionTime = Date.now();
+                        } else {
+                            updateStatus(`Жду ${wait}с...`, 'error');
+                        }
                     }
                 }
             } else {
-                pauseActionState = 0; pauseActionTime = 0; needsUserClickToPlay = false;
-
+                pauseActionState = 0; 
+                pauseActionTime = 0; 
+                needsUserClickToPlay = false; 
+                
                 if (video.currentTime > 0) updateStatus(`Смотрю ${currentEp}/${totalEps} | ${volText}`, 'normal');
-
+                
                 if (Math.abs(video.currentTime - lastTime) < 0.1) {
-                    if (pauseActionTime === 0) pauseActionTime = Date.now();
+                    if (pauseActionTime === 0) pauseActionTime = Date.now(); 
                     const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
                     if (secPassed > 20) {
                         updateStatus(`Буферизация, пихаю!`, 'error');
@@ -689,5 +753,5 @@
         } catch (e) {
             logError('Основной цикл автоматизации', /** @type {Error} */(e));
         }
-    }, 1000);
+    }, 1000); 
 })();
