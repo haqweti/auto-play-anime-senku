@@ -9,6 +9,11 @@
     <img src="https://img.shields.io/badge/Telegram-Channel-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Channel">
   </a>
   &nbsp;&nbsp;
+  <!-- Новый бейдж Discord -->
+  <a href="https://discord.gg/sKkrJZJTX" target="_blank">
+    <img src="https://img.shields.io/badge/Discord-Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Server">
+  </a>
+  &nbsp;&nbsp;
   <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js">
     <img src="https://img.shields.io/badge/Install-Script-brightgreen?style=for-the-badge&logo=javascript&logoColor=white" alt="Install Script">
   </a>
