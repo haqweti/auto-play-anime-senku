@@ -23,10 +23,11 @@
         :root {
             --accent: #ff3b47;
             --bg: #0a0a0a;
-            --card-bg: rgba(22, 22, 22, 0.6); /* Карточки стали полупрозрачными */
+            --card-bg: rgba(22, 22, 22, 0.6);
             --card-border: rgba(255,255,255,0.08);
             --text-main: #ffffff;
             --text-muted: rgba(255, 255, 255, 0.6);
+            --radius: 16px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,7 +47,7 @@
             position: relative;
         }
 
-        /* --- НОВЫЙ СЛОЙ: ФОНОВОЕ ИЗОБРАЖЕНИЕ С ЗАТЕМНЕНИЕМ И РАЗМЫТИЕМ --- */
+        /* --- ФОНОВОЕ ИЗОБРАЖЕНИЕ С ЗАТЕМНЕНИЕМ --- */
         body::before {
             content: '';
             position: fixed;
@@ -56,28 +57,19 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            /* Легкое размытие, чтобы фон не отвлекал */
-            filter: blur(5px) brightness(0.4); 
-            /* Небольшое увеличение, чтобы скрыть края после размытия */
+            filter: blur(5px) brightness(0.3); 
             transform: scale(1.05);
-            /* Плавное появление фона */
             animation: fadeInBg 2s ease-out forwards;
         }
-
-        /* Градиентный оверлей для улучшения читаемости и создания глубины */
         body::after {
             content: '';
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: -1;
-            background: linear-gradient(180deg, rgba(10, 10, 10, 0.7) 0%, rgba(10, 10, 10, 0.9) 100%);
+            background: linear-gradient(180deg, rgba(10, 10, 10, 0.8) 0%, rgba(10, 10, 10, 0.95) 100%);
             pointer-events: none;
         }
-
-        @keyframes fadeInBg {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        @keyframes fadeInBg { from { opacity: 0; } to { opacity: 1; } }
 
         /* Плавное появление */
         .fade-in-up {
@@ -91,26 +83,13 @@
         
         /* --- Секция 1: Хедер --- */
         .hero { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-        
-        .banner-wrapper {
-            perspective: 1000px;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        .banner { 
-            width: 100%; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
-            transition: transform 0.1s ease-out;
-            will-change: transform;
-        }
-
+        .banner-wrapper { perspective: 1000px; width: 100%; margin-bottom: 10px; }
+        .banner { width: 100%; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: transform 0.1s ease-out; will-change: transform; }
         h1 { color: #fff; font-size: 36px; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
         h1 span { color: var(--accent); }
         p.desc { color: var(--text-muted); font-size: 16px; max-width: 700px; margin: 0 auto; }
         
         .buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 10px; }
-        
         a.btn { 
             display: inline-flex; align-items: center; justify-content: center;
             padding: 14px 28px; border-radius: 12px; 
@@ -119,7 +98,6 @@
             position: relative; overflow: hidden;
         }
         a.btn:hover { transform: translateY(-2px); }
-        
         .btn-primary { background: var(--accent); color: #fff; animation: pulseGlow 2s infinite; }
         .btn-primary:hover { animation: none; box-shadow: 0 8px 30px rgba(255, 59, 71, 0.6); }
         @keyframes pulseGlow {
@@ -127,7 +105,6 @@
             70% { box-shadow: 0 0 0 15px rgba(255, 59, 71, 0); }
             100% { box-shadow: 0 0 0 0 rgba(255, 59, 71, 0); }
         }
-
         .btn::before {
             content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
@@ -138,105 +115,140 @@
         .btn-secondary:hover { background: rgba(255,255,255,0.15); }
 
         /* --- Общие стили для секций --- */
-        .section-title { font-size: 24px; font-weight: 700; margin-bottom: 30px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .section-title { font-size: 24px; font-weight: 700; margin-bottom: 30px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.5); position: relative; z-index: 2;}
         .section-title span { color: var(--accent); }
-        
+
         /* --- Секция 2: Возможности в действии --- */
-        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; }
-        
-        .feature-card { 
-            background: var(--card-bg); 
-            backdrop-filter: blur(10px); /* Эффект матового стекла */
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--card-border); 
-            padding: 25px; border-radius: 16px; position: relative; overflow: hidden;
-            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
-        }
-        .feature-card:hover { border-color: rgba(255, 59, 71, 0.3); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
-        
-        .feature-card h3 { color: #fff; font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
-        .feature-card h3::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-        .feature-card p { color: var(--text-muted); font-size: 13px; }
-        
-        .feature-img { 
-            width: 100%; border-radius: 8px; margin-top: 15px; 
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        .features-section { position: relative; }
+        /* Декоративный элемент на фоне секции (п.4) */
+        .features-bg-art {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 80%;
+            background-image: url('https://i.pinimg.com/736x/83/5d/17/835d17cb5b78e542e44df892347ce451.jpg');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.05; /* Едва заметный фон */
+            z-index: 0;
+            pointer-events: none;
+            filter: grayscale(100%);
         }
 
-        /* --- Секция 3: Начало работы --- */
+        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; position: relative; z-index: 1; }
+        .feature-card { 
+            background: var(--card-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); padding: 25px; border-radius: var(--radius); position: relative; overflow: hidden;
+            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+            display: flex; flex-direction: column;
+        }
+        .feature-card:hover { border-color: rgba(255, 59, 71, 0.3); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+        .feature-card h3 { color: #fff; font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .feature-card h3::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+        .feature-card p { color: var(--text-muted); font-size: 13px; margin-bottom: 15px; flex-grow: 1; }
+        
+        .feature-img { 
+            width: 100%; border-radius: 8px; margin-top: auto; 
+            border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        /* --- Секция 3: Интерактивная демонстрация (п.5) --- */
+        .demo-section { background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 24px; padding: 40px 20px; position: relative; overflow: hidden; }
+        
+        .demo-container {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 20px; position: relative; z-index: 1;
+        }
+        
+        /* Стилизация под настоящую панель из скрипта */
+        .demo-panel {
+            background: rgba(22, 22, 22, 0.92); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+            border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius);
+            padding: 10px 14px; display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-size: 11px; font-weight: 600; width: fit-content;
+        }
+        .demo-trigger { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
+        .demo-trigger:hover { opacity: 1; }
+        .demo-trigger svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+        
+        .demo-status { color: rgba(255,255,255,0.7); white-space: nowrap; }
+        .demo-status.active { color: #fff; }
+        
+        .demo-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); }
+        
+        .demo-vol-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 8px; }
+        .demo-vol-wrap svg { width: 14px; height: 14px; fill: rgba(255,255,255,0.6); }
+        .demo-vol-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.22); background-image: linear-gradient(var(--accent), var(--accent)); background-size: 50% 100%; background-repeat: no-repeat; outline: none; cursor: pointer; }
+        .demo-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; }
+
+        .demo-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; cursor: pointer; opacity: 0.7; margin-left: 4px; }
+        .demo-queue-icon:hover { opacity: 1; stroke: var(--accent); }
+
+        .demo-toggle { width: 36px; height: 20px; border-radius: 999px; background: rgba(255,255,255,0.16); position: relative; cursor: pointer; transition: background 0.3s; margin-left: 4px; }
+        .demo-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.3s; }
+        .demo-toggle.active { background: var(--accent); }
+        .demo-toggle.active::after { transform: translateX(16px); }
+
+        /* Демо-очередь */
+        .demo-queue-modal {
+            position: absolute; top: 100%; right: 0; margin-top: 10px;
+            background: rgba(22, 22, 22, 0.98); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px; padding: 20px; width: 320px; text-align: left;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+            opacity: 0; pointer-events: none; transform: translateY(-10px);
+            transition: opacity 0.3s, transform 0.3s; z-index: 10;
+        }
+        .demo-queue-modal.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+        .demo-queue-modal h4 { font-size: 14px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+        .demo-queue-modal h4 span { cursor: pointer; color: rgba(255,255,255,0.5); }
+        .demo-queue-item { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; margin-bottom: 8px; }
+        .demo-queue-img { width: 30px; height: 40px; border-radius: 4px; background: #333; object-fit: cover; }
+        .demo-queue-info { font-size: 10px; }
+        .demo-queue-title { font-weight: bold; color: #fff; margin-bottom: 2px; }
+        .demo-queue-ep { color: var(--accent); font-size: 8px; }
+
+        /* --- Секция 4: Начало работы --- */
         .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-        .step-card { 
-            background: var(--card-bg); 
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--card-border); 
-            padding: 20px; border-radius: 16px; position: relative;
-            transition: transform 0.3s;
-        }
+        .step-card { background: var(--card-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--card-border); padding: 20px; border-radius: var(--radius); position: relative; transition: transform 0.3s; }
         .step-card:hover { transform: translateY(-3px); }
-        .step-num { 
-            width: 32px; height: 32px; background: rgba(255, 59, 71, 0.1); color: var(--accent);
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 14px; margin-bottom: 15px;
-        }
+        .step-num { width: 32px; height: 32px; background: rgba(255, 59, 71, 0.1); color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin-bottom: 15px; }
         .step-card h4 { font-size: 14px; margin-bottom: 8px; }
         .step-card p { font-size: 12px; color: var(--text-muted); }
 
-        /* --- Секция 4: Последние обновления --- */
-        .update-card {
-            background: linear-gradient(180deg, rgba(255,59,71,0.08) 0%, var(--card-bg) 100%);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 59, 71, 0.2); border-radius: 16px;
-            padding: 30px; text-align: left;
-        }
-        .update-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-        .update-version { font-size: 20px; font-weight: 700; color: #fff; }
-        .update-date { font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 4px 10px; border-radius: 20px; }
-        .update-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-        .update-list li { font-size: 14px; color: var(--text-muted); display: flex; gap: 10px; }
-        .update-list li::before { content: '→'; color: var(--accent); }
+        /* --- Секция 5: Обновления (Таймлайн) --- */
+        .updates-container { position: relative; text-align: left; padding-left: 20px; max-width: 800px; margin: 0 auto; }
+        .updates-container::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.1); }
         
-        /* --- Секция 5: Совместимость --- */
+        .update-card { position: relative; margin-bottom: 30px; padding-left: 30px; }
+        .update-card::before { content: ''; position: absolute; left: -26px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(255,59,71,0.5); }
+        
+        .update-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; }
+        .update-version { font-size: 18px; font-weight: 700; color: #fff; }
+        .update-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .update-date { font-size: 12px; color: var(--text-muted); }
+        .update-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        .update-list li { font-size: 13px; color: var(--text-muted); display: flex; gap: 10px; }
+        .update-list li::before { content: '→'; color: var(--accent); }
+
+        /* --- Секция 6: Совместимость --- */
         .compat-grid { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .compat-item {
-            background: var(--card-bg); 
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--card-border);
-            padding: 15px 25px; border-radius: 12px;
-            display: flex; align-items: center; gap: 12px;
-            transition: transform 0.2s, border-color 0.2s;
-        }
+        .compat-item { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--card-border); padding: 15px 25px; border-radius: 12px; display: flex; align-items: center; gap: 12px; transition: transform 0.2s, border-color 0.2s; }
         .compat-item:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.2); }
         .compat-icon { width: 24px; height: 24px; fill: var(--text-muted); }
 
-        /* --- Секция 6: FAQ --- */
-        .faq-container { display: flex; flex-direction: column; gap: 10px; text-align: left; }
-        details {
-            background: var(--card-bg); 
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--card-border);
-            border-radius: 12px; overflow: hidden; transition: background 0.3s, border-color 0.3s;
-        }
+        /* --- Секция 7: FAQ --- */
+        .faq-container { display: flex; flex-direction: column; gap: 10px; text-align: left; max-width: 800px; margin: 0 auto; }
+        details { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; transition: background 0.3s, border-color 0.3s; }
         details:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
-        summary {
-            padding: 20px; font-weight: 600; font-size: 14px; cursor: pointer;
-            list-style: none; display: flex; justify-content: space-between; align-items: center;
-        }
+        summary { padding: 20px; font-weight: 600; font-size: 14px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
         summary::-webkit-details-marker { display: none; }
         summary::after { content: '+'; color: var(--accent); font-size: 20px; font-weight: 300; transition: transform 0.3s; }
         details[open] summary::after { transform: rotate(45deg); }
         .faq-content { padding: 0 20px 20px; color: var(--text-muted); font-size: 13px; }
 
         /* --- Футер --- */
-        footer {
-            margin-top: 20px; padding-top: 30px; border-top: 1px solid var(--card-border);
-            width: 100%; text-align: center; color: var(--text-muted); font-size: 13px;
-            display: flex; flex-direction: column; gap: 8px;
-        }
+        footer { margin-top: 20px; padding-top: 30px; border-top: 1px solid var(--card-border); width: 100%; text-align: center; color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
         footer .author { color: #fff; font-weight: 600; }
         footer .copyright { font-size: 11px; opacity: 0.6; }
 
@@ -246,6 +258,9 @@
             .steps-grid { grid-template-columns: 1fr 1fr; }
             h1 { font-size: 28px; }
             .container { gap: 60px; }
+            .demo-panel { flex-wrap: wrap; justify-content: center; }
+            .demo-queue-modal { right: 50%; transform: translateX(50%) translateY(-10px); }
+            .demo-queue-modal.visible { transform: translateX(50%) translateY(0); }
         }
         @media (max-width: 480px) {
             .steps-grid { grid-template-columns: 1fr; }
@@ -253,7 +268,6 @@
             a.btn { width: 100%; }
             body::before { filter: blur(3px) brightness(0.3); }
         }
-
     </style>
 </head>
 <body>
@@ -278,25 +292,25 @@
         </header>
 
         <!-- 2. FEATURES IN ACTION -->
-        <section class="fade-in-up" style="animation-delay: 0.2s;">
+        <section class="features-section fade-in-up" style="animation-delay: 0.2s;">
+            <div class="features-bg-art"></div>
             <h2 class="section-title" data-ru="Возможности в <span>действии</span>" data-en="Features in <span>Action</span>">Возможности в <span>действии</span></h2>
+            
             <div class="features-grid">
                 
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Панель управления" data-en="Control Panel">Панель управления</h3>
                     <p data-ru="Полный контроль над громкостью, очередью и переключением прямо в плеере." data-en="Full control over volume, queue, and switching right in the player.">Полный контроль над громкостью, очередью и переключением прямо в плеере.</p>
-                    <!-- Используем скриншот из чата -->
                     <img src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" class="feature-img" style="object-fit: cover; height: 120px; object-position: top;" alt="Control Panel">
                 </div>
 
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Умный плейлист" data-en="Smart Playlist">Умный плейлист</h3>
                     <p data-ru="Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически." data-en="Add next seasons or titles to the queue, and they will start automatically.">Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически.</p>
-                    <!-- Заглушка для плейлиста (стилизованная под UI) -->
-                    <div style="margin-top:15px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px;">
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px; margin-top:auto;">
                         <div style="width:30px; height:40px; background:rgba(255,255,255,0.1); border-radius:4px;"></div>
                         <div>
-                            <div style="font-size:10px; font-weight:bold; color:#fff;" data-ru="Аниме (Сезон 2)" data-en="Anime (Season 2)">Аниме (Сезон 2)</div>
+                            <div style="font-size:10px; font-weight:bold; color:#fff;" data-ru="Повар-боец Сома" data-en="Food Wars!">Повар-боец Сома</div>
                             <div style="font-size:8px; color:#ff3b47;" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
                         </div>
                     </div>
@@ -305,18 +319,79 @@
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Автопереход" data-en="Auto-Next">Автопереход</h3>
                     <p data-ru="Скрипт сам находит следующую серию и запускает её, обходя зависания плеера." data-en="The script finds the next episode and plays it, bypassing player freezes.">Скрипт сам находит следующую серию и запускает её, обходя зависания плеера.</p>
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; justify-content:space-between; margin-top:auto;">
+                        <span style="font-size:12px; color:#fff;" data-ru="Серия завершена" data-en="Episode ended">Серия завершена</span>
+                        <span style="color:#ff3b47; font-size:16px;">⏭</span>
+                    </div>
                 </div>
 
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Фикс звука" data-en="Volume Sync">Фикс звука</h3>
                     <p data-ru="Громкость в панели и плеере синхронизирована. Больше никаких сбросов на 100%." data-en="Volume in the panel and player is synchronized. No more resets to 100%.">Громкость в панели и плеере синхронизирована. Больше никаких сбросов на 100%.</p>
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px; margin-top:auto;">
+                        <span style="font-size:14px;">🔊</span>
+                        <div style="flex:1; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; position:relative;">
+                            <div style="position:absolute; left:0; top:0; height:100%; width:50%; background:#ff3b47; border-radius:2px;"></div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
         </section>
 
-        <!-- 3. GETTING STARTED -->
-        <section class="fade-in-up" style="animation-delay: 0.3s;">
+        <!-- 3. INTERACTIVE DEMO -->
+        <section class="demo-section fade-in-up" style="animation-delay: 0.3s;">
+            <h2 class="section-title" data-ru="Попробуй <span>сам</span>" data-en="Try it <span>yourself</span>">Попробуй <span>сам</span></h2>
+            
+            <div class="demo-container">
+                <!-- Макет панели -->
+                <div class="demo-panel" id="interactive-panel">
+                    
+                    <div class="demo-trigger" title="Toggle Panel">
+                        <svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="20"></line></svg>
+                    </div>
+
+                    <span class="demo-status active" id="demo-status-text" data-ru="Смотрю 3/12 | Mute" data-en="Watching 3/12 | Mute">Смотрю 3/12 | Mute</span>
+                    
+                    <div class="demo-divider"></div>
+                    
+                    <div class="demo-vol-wrap">
+                        <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                        <input type="range" class="demo-vol-slider" id="demo-vol" min="0" max="100" value="50">
+                    </div>
+                    
+                    <svg class="demo-queue-icon" id="demo-queue-btn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    
+                    <div class="demo-toggle active" id="demo-toggle"></div>
+
+                    <!-- Демо-очередь -->
+                    <div class="demo-queue-modal" id="demo-queue-modal">
+                        <h4 data-ru="Очередь" data-en="Queue">Очередь <span id="demo-queue-close">×</span></h4>
+                        
+                        <div class="demo-queue-item">
+                            <img src="https://i.pinimg.com/736x/83/5d/17/835d17cb5b78e542e44df892347ce451.jpg" class="demo-queue-img" style="object-fit: cover; object-position: top;">
+                            <div class="demo-queue-info">
+                                <div class="demo-queue-title">Lain</div>
+                                <div class="demo-queue-ep" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
+                            </div>
+                        </div>
+
+                        <div class="demo-queue-item">
+                            <div class="demo-queue-img" style="background: #222;"></div>
+                            <div class="demo-queue-info">
+                                <div class="demo-queue-title" data-ru="Аниме 2" data-en="Anime 2">Аниме 2</div>
+                                <div class="demo-queue-ep" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 15px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
+            </div>
+        </section>
+
+        <!-- 4. GETTING STARTED -->
+        <section class="fade-in-up" style="animation-delay: 0.4s;">
             <h2 class="section-title" data-ru="Начало <span>работы</span>" data-en="Getting <span>Started</span>">Начало <span>работы</span></h2>
             <div class="steps-grid">
                 <div class="step-card">
@@ -342,25 +417,47 @@
             </div>
         </section>
 
-        <!-- 4. LATEST UPDATES -->
-        <section class="fade-in-up" style="animation-delay: 0.4s;">
+        <!-- 5. LATEST UPDATES (Timeline) -->
+        <section class="fade-in-up" style="animation-delay: 0.5s;">
             <h2 class="section-title" data-ru="Последние <span>обновления</span>" data-en="Latest <span>Updates</span>">Последние <span>обновления</span></h2>
-            <div class="update-card">
-                <div class="update-header">
-                    <div class="update-version">v3.1</div>
-                    <div class="update-date" data-ru="Недавно" data-en="Recently">Недавно</div>
+            
+            <div class="updates-container">
+                
+                <!-- Версия 3.1 -->
+                <div class="update-card">
+                    <div class="update-header">
+                        <div class="update-version">v3.1</div>
+                        <div class="update-badge" data-ru="Актуальная" data-en="Latest">Актуальная</div>
+                        <div class="update-date">12.11.2026</div>
+                    </div>
+                    <ul class="update-list">
+                        <li data-ru="Автоматическое определение языка (RU/EN)" data-en="Automatic language detection (RU/EN)">Автоматическое определение языка (RU/EN)</li>
+                        <li data-ru="Добавлена английская документация" data-en="Added English documentation">Добавлена английская документация</li>
+                        <li data-ru="Обновление сайта и графики" data-en="Website and graphics update">Обновление сайта и графики</li>
+                    </ul>
                 </div>
-                <ul class="update-list">
-                    <li data-ru="Автоматическое определение языка (RU/EN)" data-en="Automatic language detection (RU/EN)">Автоматическое определение языка (RU/EN)</li>
-                    <li data-ru="Добавлена английская документация" data-en="Added English documentation">Добавлена английская документация</li>
-                    <li data-ru="Обновление сайта и графики" data-en="Website and graphics update">Обновление сайта и графики</li>
-                </ul>
-                <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" style="font-size: 12px; padding: 10px 20px;" data-ru="История обновлений" data-en="Release History">История обновлений</a>
+
+                <!-- Версия 3.0 -->
+                <div class="update-card" style="opacity: 0.7;">
+                    <div class="update-header">
+                        <div class="update-version">v3.0</div>
+                        <div class="update-date">10.11.2026</div>
+                    </div>
+                    <ul class="update-list">
+                        <li data-ru="Глобальный фикс паузы и звука" data-en="Major pause and volume fix">Глобальный фикс паузы и звука</li>
+                        <li data-ru="Добавлен умный плейлист" data-en="Added smart playlist">Добавлен умный плейлист</li>
+                        <li data-ru="Улучшенный алгоритм поиска серий" data-en="Improved episode search algorithm">Улучшенный алгоритм поиска серий</li>
+                    </ul>
+                </div>
+
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" style="font-size: 12px; padding: 10px 20px;" data-ru="Вся история обновлений" data-en="Full Release History">Вся история обновлений</a>
             </div>
         </section>
 
-        <!-- 5. COMPATIBILITY -->
-        <section class="fade-in-up" style="animation-delay: 0.5s;">
+        <!-- 6. COMPATIBILITY -->
+        <section class="fade-in-up" style="animation-delay: 0.6s;">
             <h2 class="section-title" data-ru="Совместимость" data-en="Compatibility">Совместимость</h2>
             <div class="compat-grid">
                 <div class="compat-item">
@@ -378,8 +475,8 @@
             </div>
         </section>
 
-        <!-- 6. FAQ -->
-        <section class="fade-in-up" style="animation-delay: 0.6s;">
+        <!-- 7. FAQ -->
+        <section class="fade-in-up" style="animation-delay: 0.7s;">
             <h2 class="section-title" data-ru="Часто задаваемые <span>вопросы</span>" data-en="Frequently Asked <span>Questions</span>">Часто задаваемые <span>вопросы</span></h2>
             <div class="faq-container">
                 
@@ -394,25 +491,35 @@
                 </details>
 
                 <details>
-                    <summary data-ru="Как работает автоматический переход?" data-en="How does auto-next work?">Как работает автоматический переход?</summary>
-                    <div class="faq-content" data-ru="Скрипт отслеживает окончание серии. Как только видео заканчивается, он находит следующую серию в текущем сезоне или берет следующий тайтл из вашей очереди." data-en="The script tracks the end of the episode. Once the video ends, it finds the next episode in the current season or takes the next title from your queue.">Скрипт отслеживает окончание серии. Как только видео заканчивается, он находит следующую серию в текущем сезоне или берет следующий тайтл из вашей очереди.</div>
+                    <summary data-ru="Можно ли использовать очередь между разными сезонами?" data-en="Can I use the queue between different seasons?">Можно ли использовать очередь между разными сезонами?</summary>
+                    <div class="faq-content" data-ru="Да. Очередь не привязана к конкретному сезону. Вы можете добавить туда ссылки на второй, третий сезон или даже совершенно другие тайтлы, и скрипт будет переключаться между ними по завершении текущего." data-en="Yes. The queue is not tied to a specific season. You can add links to the second, third season, or even completely different titles, and the script will switch between them upon completion of the current one.">Да. Очередь не привязана к конкретному сезону. Вы можете добавить туда ссылки на второй, третий сезон или даже совершенно другие тайтлы, и скрипт будет переключаться между ними по завершении текущего.</div>
                 </details>
 
                 <details>
-                    <summary data-ru="Что делать, если не работает синхронизация звука?" data-en="What to do if volume sync doesn't work?">Что делать, если не работает синхронизация звука?</summary>
-                    <div class="faq-content" data-ru="Убедитесь, что вы не меняете громкость на самом сайте в момент переключения. Если проблема сохраняется, попробуйте перезагрузить страницу (F5)." data-en="Make sure you are not changing the volume on the site itself at the moment of switching. If the problem persists, try refreshing the page (F5).">Убедитесь, что вы не меняете громкость на самом сайте в момент переключения. Если проблема сохраняется, попробуйте перезагрузить страницу (F5).</div>
+                    <summary data-ru="Нужно ли держать вкладку открытой для автоперехода?" data-en="Do I need to keep the tab open for auto-next?">Нужно ли держать вкладку открытой для автоперехода?</summary>
+                    <div class="faq-content" data-ru="Да, скрипт работает в контексте открытой страницы. Если вы закроете вкладку, скрипт остановится. Если вы свернете браузер, автопереход продолжит работать, но браузер может ограничить фоновую активность для экономии энергии." data-en="Yes, the script runs in the context of the open page. If you close the tab, the script stops. If you minimize the browser, auto-next will continue to work, but the browser may limit background activity to save power.">Да, скрипт работает в контексте открытой страницы. Если вы закроете вкладку, скрипт остановится. Если вы свернете браузер, автопереход продолжит работать, но браузер может ограничить фоновую активность для экономии энергии.</div>
                 </details>
 
                 <details>
-                    <summary data-ru="Как обновить скрипт?" data-en="How to update the script?">Как обновить скрипт?</summary>
-                    <div class="faq-content" data-ru="Tampermonkey обновляет скрипты автоматически раз в несколько часов. Для ручного обновления зайдите в «Утилиты» в меню расширения и нажмите «Проверить обновления»." data-en="Tampermonkey updates scripts automatically every few hours. For manual updates, go to 'Utilities' in the extension menu and click 'Check for updates'.">Tampermonkey обновляет скрипты автоматически раз в несколько часов. Для ручного обновления зайдите в «Утилиты» в меню расширения и нажмите «Проверить обновления».</div>
+                    <summary data-ru="Что произойдёт, если серия закончится раньше времени?" data-en="What happens if the episode ends early?">Что произойдёт, если серия закончится раньше времени?</summary>
+                    <div class="faq-content" data-ru="Скрипт ориентируется на событие окончания воспроизведения (ended). Если видео оборвется из-за ошибки загрузки, скрипт попытается перезапустить его. Если это настоящий конец видеофайла (даже если он короче заявленного), скрипт переключит на следующую серию." data-en="The script relies on the playback end event (ended). If the video breaks due to a loading error, the script will try to restart it. If it's the true end of the video file (even if it's shorter than declared), the script will switch to the next episode.">Скрипт ориентируется на событие окончания воспроизведения (ended). Если видео оборвется из-за ошибки загрузки, скрипт попытается перезапустить его. Если это настоящий конец видеофайла (даже если он короче заявленного), скрипт переключит на следующую серию.</div>
+                </details>
+
+                <details>
+                    <summary data-ru="Можно ли вручную переключать серии при активной очереди?" data-en="Can I manually switch episodes while the queue is active?">Можно ли вручную переключать серии при активной очереди?</summary>
+                    <div class="faq-content" data-ru="Да. Вы можете в любой момент нажать на любую серию в меню сайта. Скрипт поймёт, что вы переключились вручную, обновит свой статус и продолжит отслеживать конец уже новой серии. Очередь при этом не сбрасывается." data-en="Yes. You can click on any episode in the site menu at any time. The script will understand that you switched manually, update its status, and continue tracking the end of the new episode. The queue is not reset.">Да. Вы можете в любой момент нажать на любую серию в меню сайта. Скрипт поймёт, что вы переключились вручную, обновит свой статус и продолжит отслеживать конец уже новой серии. Очередь при этом не сбрасывается.</div>
+                </details>
+
+                <details>
+                    <summary data-ru="Как работает синхронизация громкости?" data-en="How does volume sync work?">Как работает синхронизация громкости?</summary>
+                    <div class="faq-content" data-ru="Скрипт отслеживает изменения громкости как в самом плеере, так и в панели управления. Если вы меняете звук в плеере, ползунок в панели двигается, и наоборот. Значение громкости сохраняется в памяти браузера и применяется к каждой новой серии." data-en="The script tracks volume changes both in the player itself and in the control panel. If you change the sound in the player, the slider in the panel moves, and vice versa. The volume value is saved in the browser's memory and applied to each new episode.">Скрипт отслеживает изменения громкости как в самом плеере, так и в панели управления. Если вы меняете звук в плеере, ползунок в панели двигается, и наоборот. Значение громкости сохраняется в памяти браузера и применяется к каждой новой серии.</div>
                 </details>
 
             </div>
         </section>
 
         <!-- FOOTER -->
-        <footer class="fade-in-up" style="animation-delay: 0.7s;">
+        <footer class="fade-in-up" style="animation-delay: 0.8s;">
             <div class="author">Автор: mikuro</div>
             <div class="copyright" data-ru="Все права защищены © 2026" data-en="All rights reserved © 2026">Все права защищены © 2026</div>
         </footer>
@@ -420,7 +527,7 @@
     </div>
 
     <script>
-        // --- 1. Логика перевода на основе data-атрибутов ---
+        // --- 1. Логика перевода ---
         const isRussian = navigator.language.toLowerCase().startsWith('ru');
         
         if (!isRussian) {
@@ -438,7 +545,6 @@
         // --- 2. 3D-наклон для баннера и карточек ---
         function initTilt(element) {
             if (!element) return;
-
             const xTransform = 10;
             const yTransform = 10;
 
@@ -446,7 +552,6 @@
                 const rect = element.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-
                 const centerX = rect.width / 2;
                 const centerY = rect.height / 2;
 
@@ -463,10 +568,51 @@
 
         const banner = document.getElementById('tiltBanner');
         initTilt(banner);
-
         const cards = document.querySelectorAll('[data-tilt]');
         cards.forEach(card => initTilt(card));
 
+        // --- 3. Интерактивная демонстрация (п.5) ---
+        const demoToggle = document.getElementById('demo-toggle');
+        const demoStatus = document.getElementById('demo-status-text');
+        const demoVol = document.getElementById('demo-vol');
+        const demoQueueBtn = document.getElementById('demo-queue-btn');
+        const demoQueueModal = document.getElementById('demo-queue-modal');
+        const demoQueueClose = document.getElementById('demo-queue-close');
+
+        // Переключатель вкл/выкл
+        demoToggle.addEventListener('click', () => {
+            demoToggle.classList.toggle('active');
+            const isActive = demoToggle.classList.contains('active');
+            
+            if (isActive) {
+                demoStatus.className = 'demo-status active';
+                demoStatus.innerText = isRussian ? 'Смотрю 3/12 | Mute' : 'Watching 3/12 | Mute';
+            } else {
+                demoStatus.className = 'demo-status';
+                demoStatus.innerText = isRussian ? 'Выключено' : 'Disabled';
+            }
+        });
+
+        // Ползунок громкости
+        demoVol.addEventListener('input', (e) => {
+            const val = e.target.value;
+            e.target.style.backgroundSize = `${val}% 100%`;
+            if (demoToggle.classList.contains('active')) {
+                const volText = val == 0 ? 'Mute' : `${val}%`;
+                demoStatus.innerText = isRussian ? `Смотрю 3/12 | ${volText}` : `Watching 3/12 | ${volText}`;
+            }
+        });
+
+        // Открытие/закрытие очереди
+        demoQueueBtn.addEventListener('click', () => {
+            if (demoToggle.classList.contains('active')) {
+                demoQueueModal.classList.toggle('visible');
+            }
+        });
+
+        demoQueueClose.addEventListener('click', () => {
+            demoQueueModal.classList.remove('visible');
+        });
     </script>
 </body>
 </html>
