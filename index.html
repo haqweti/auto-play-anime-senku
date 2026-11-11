@@ -23,7 +23,7 @@
         :root {
             --accent: #ff3b47;
             --bg: #0a0a0a;
-            --card-bg: rgba(255,255,255,0.03);
+            --card-bg: rgba(22, 22, 22, 0.6); /* Карточки стали полупрозрачными */
             --card-border: rgba(255,255,255,0.08);
             --text-main: #ffffff;
             --text-muted: rgba(255, 255, 255, 0.6);
@@ -34,7 +34,7 @@
         
         body { 
             font-family: 'Unbounded', sans-serif; 
-            background: var(--bg); 
+            background-color: var(--bg); 
             color: var(--text-main); 
             display: flex; 
             flex-direction: column; 
@@ -42,15 +42,41 @@
             min-height: 100vh; 
             padding: 40px 20px;
             overflow-x: hidden;
-            background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.15) 0%, transparent 50%);
-            background-size: 100% 100%;
-            animation: bgPulse 8s ease-in-out infinite alternate;
             line-height: 1.5;
+            position: relative;
         }
 
-        @keyframes bgPulse {
-            0% { background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.1) 0%, transparent 45%); }
-            100% { background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.2) 0%, transparent 55%); }
+        /* --- НОВЫЙ СЛОЙ: ФОНОВОЕ ИЗОБРАЖЕНИЕ С ЗАТЕМНЕНИЕМ И РАЗМЫТИЕМ --- */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background-image: url('https://preview.redd.it/lain-linux-desktop-lets-all-love-lain-p-v0-tv4xj2jf4slc1.png?width=1080&crop=smart&auto=webp&s=1fc998a02a6cc49726b94105bf1a893304b39c1d');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            /* Легкое размытие, чтобы фон не отвлекал */
+            filter: blur(5px) brightness(0.4); 
+            /* Небольшое увеличение, чтобы скрыть края после размытия */
+            transform: scale(1.05);
+            /* Плавное появление фона */
+            animation: fadeInBg 2s ease-out forwards;
+        }
+
+        /* Градиентный оверлей для улучшения читаемости и создания глубины */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background: linear-gradient(180deg, rgba(10, 10, 10, 0.7) 0%, rgba(10, 10, 10, 0.9) 100%);
+            pointer-events: none;
+        }
+
+        @keyframes fadeInBg {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         /* Плавное появление */
@@ -79,7 +105,7 @@
             will-change: transform;
         }
 
-        h1 { color: #fff; font-size: 36px; line-height: 1.2; }
+        h1 { color: #fff; font-size: 36px; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
         h1 span { color: var(--accent); }
         p.desc { color: var(--text-muted); font-size: 16px; max-width: 700px; margin: 0 auto; }
         
@@ -112,18 +138,21 @@
         .btn-secondary:hover { background: rgba(255,255,255,0.15); }
 
         /* --- Общие стили для секций --- */
-        .section-title { font-size: 24px; font-weight: 700; margin-bottom: 30px; text-align: center; }
+        .section-title { font-size: 24px; font-weight: 700; margin-bottom: 30px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
         .section-title span { color: var(--accent); }
         
         /* --- Секция 2: Возможности в действии --- */
         .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; }
         
         .feature-card { 
-            background: var(--card-bg); border: 1px solid var(--card-border); 
+            background: var(--card-bg); 
+            backdrop-filter: blur(10px); /* Эффект матового стекла */
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); 
             padding: 25px; border-radius: 16px; position: relative; overflow: hidden;
-            transition: border-color 0.3s;
+            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
         }
-        .feature-card:hover { border-color: rgba(255, 59, 71, 0.3); }
+        .feature-card:hover { border-color: rgba(255, 59, 71, 0.3); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
         
         .feature-card h3 { color: #fff; font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
         .feature-card h3::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -138,9 +167,14 @@
         /* --- Секция 3: Начало работы --- */
         .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
         .step-card { 
-            background: var(--card-bg); border: 1px solid var(--card-border); 
+            background: var(--card-bg); 
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); 
             padding: 20px; border-radius: 16px; position: relative;
+            transition: transform 0.3s;
         }
+        .step-card:hover { transform: translateY(-3px); }
         .step-num { 
             width: 32px; height: 32px; background: rgba(255, 59, 71, 0.1); color: var(--accent);
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -151,13 +185,15 @@
 
         /* --- Секция 4: Последние обновления --- */
         .update-card {
-            background: linear-gradient(180deg, rgba(255,59,71,0.05) 0%, var(--card-bg) 100%);
+            background: linear-gradient(180deg, rgba(255,59,71,0.08) 0%, var(--card-bg) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 59, 71, 0.2); border-radius: 16px;
             padding: 30px; text-align: left;
         }
         .update-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         .update-version { font-size: 20px; font-weight: 700; color: #fff; }
-        .update-date { font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; }
+        .update-date { font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 4px 10px; border-radius: 20px; }
         .update-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
         .update-list li { font-size: 14px; color: var(--text-muted); display: flex; gap: 10px; }
         .update-list li::before { content: '→'; color: var(--accent); }
@@ -165,19 +201,27 @@
         /* --- Секция 5: Совместимость --- */
         .compat-grid { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
         .compat-item {
-            background: var(--card-bg); border: 1px solid var(--card-border);
+            background: var(--card-bg); 
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
             padding: 15px 25px; border-radius: 12px;
             display: flex; align-items: center; gap: 12px;
+            transition: transform 0.2s, border-color 0.2s;
         }
+        .compat-item:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.2); }
         .compat-icon { width: 24px; height: 24px; fill: var(--text-muted); }
 
         /* --- Секция 6: FAQ --- */
         .faq-container { display: flex; flex-direction: column; gap: 10px; text-align: left; }
         details {
-            background: var(--card-bg); border: 1px solid var(--card-border);
-            border-radius: 12px; overflow: hidden; transition: background 0.3s;
+            background: var(--card-bg); 
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 12px; overflow: hidden; transition: background 0.3s, border-color 0.3s;
         }
-        details:hover { background: rgba(255,255,255,0.05); }
+        details:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
         summary {
             padding: 20px; font-weight: 600; font-size: 14px; cursor: pointer;
             list-style: none; display: flex; justify-content: space-between; align-items: center;
@@ -207,6 +251,7 @@
             .steps-grid { grid-template-columns: 1fr; }
             .buttons { flex-direction: column; width: 100%; }
             a.btn { width: 100%; }
+            body::before { filter: blur(3px) brightness(0.3); }
         }
 
     </style>
@@ -248,11 +293,11 @@
                     <h3 data-ru="Умный плейлист" data-en="Smart Playlist">Умный плейлист</h3>
                     <p data-ru="Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически." data-en="Add next seasons or titles to the queue, and they will start automatically.">Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически.</p>
                     <!-- Заглушка для плейлиста (стилизованная под UI) -->
-                    <div style="margin-top:15px; background:#121212; border:1px solid #333; border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px;">
-                        <div style="width:30px; height:40px; background:#222; border-radius:4px;"></div>
+                    <div style="margin-top:15px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px;">
+                        <div style="width:30px; height:40px; background:rgba(255,255,255,0.1); border-radius:4px;"></div>
                         <div>
-                            <div style="font-size:10px; font-weight:bold; color:#fff;">Аниме (Сезон 2)</div>
-                            <div style="font-size:8px; color:#ff3b47;">Серия 1</div>
+                            <div style="font-size:10px; font-weight:bold; color:#fff;" data-ru="Аниме (Сезон 2)" data-en="Anime (Season 2)">Аниме (Сезон 2)</div>
+                            <div style="font-size:8px; color:#ff3b47;" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
                         </div>
                     </div>
                 </div>
@@ -379,12 +424,10 @@
         const isRussian = navigator.language.toLowerCase().startsWith('ru');
         
         if (!isRussian) {
-            // Переводим все элементы, у которых есть data-en
             document.querySelectorAll('[data-en]').forEach(el => {
                 el.innerHTML = el.getAttribute('data-en');
             });
             
-            // Дополнительный перевод для элементов без data-атрибутов (кнопки хедера)
             document.getElementById('btn-install').innerText = 'Install Script';
             document.getElementById('btn-github').innerText = 'GitHub';
             document.getElementById('btn-tg').innerText = 'Telegram Channel';
