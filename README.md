@@ -1,5 +1,13 @@
 [![Powered by DeepSeek](https://img.shields.io/badge/Powered%20by-DeepSeek-0052FF?style=for-the-badge&logo=openai&logoColor=white)](https://deepseek.com)
 [![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js)
+
+<p align="center">
+ <img width="1274" height="630" alt="{C8242E07-1846-4651-A4C8-39C715370785}" src="https://github.com/user-attachments/assets/80bff55d-60b4-46ce-9838-b300876ac1a6" />
+
+</p>
+
+<br>
+
 # Senku Ultimate Autoplay
 
 Расширение для сайта Senku (senku.one), которое превращает стандартный плеер в умный кинотеатр с автовоспроизведением и очередью.
