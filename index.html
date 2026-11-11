@@ -154,11 +154,12 @@
         }
 
         /* --- Секция 3: Интерактивная демонстрация (п.5) --- */
-        .demo-section { background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 24px; padding: 40px 20px; position: relative; overflow: hidden; }
+        /* Убрали overflow: hidden, чтобы всплывающее окно не обрезалось */
+        .demo-section { background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 24px; padding: 40px 20px; position: relative; }
         
         .demo-container {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 20px; position: relative; z-index: 1;
+            gap: 20px; position: relative; z-index: 10; /* Подняли z-index, чтобы окно было поверх текста */
         }
         
         /* Стилизация под настоящую панель из скрипта */
@@ -167,6 +168,7 @@
             border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius);
             padding: 10px 14px; display: flex; align-items: center; gap: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-size: 11px; font-weight: 600; width: fit-content;
+            position: relative; /* ДОБАВЛЕНО: чтобы окно позиционировалось относительно панели */
         }
         .demo-trigger { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
         .demo-trigger:hover { opacity: 1; }
@@ -192,16 +194,19 @@
 
         /* Демо-очередь */
         .demo-queue-modal {
-            position: absolute; top: 100%; right: 0; margin-top: 10px;
+            position: absolute; 
+            top: 100%; /* Позиционируется ровно под панелью */
+            right: 0; 
+            margin-top: 10px;
             background: rgba(22, 22, 22, 0.98); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px; padding: 20px; width: 320px; text-align: left;
+            border-radius: 20px; padding: 20px; width: 300px; text-align: left;
             box-shadow: 0 20px 60px rgba(0,0,0,0.9);
             opacity: 0; pointer-events: none; transform: translateY(-10px);
-            transition: opacity 0.3s, transform 0.3s; z-index: 10;
+            transition: opacity 0.3s, transform 0.3s; z-index: 50;
         }
         .demo-queue-modal.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
         .demo-queue-modal h4 { font-size: 14px; margin-bottom: 15px; display: flex; justify-content: space-between; }
-        .demo-queue-modal h4 span { cursor: pointer; color: rgba(255,255,255,0.5); }
+        .demo-queue-modal h4 span { cursor: pointer; color: rgba(255,255,255,0.5); font-size: 18px; line-height: 1; }
         .demo-queue-item { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; margin-bottom: 8px; }
         .demo-queue-img { width: 30px; height: 40px; border-radius: 4px; background: #333; object-fit: cover; }
         .demo-queue-info { font-size: 10px; }
@@ -259,8 +264,15 @@
             h1 { font-size: 28px; }
             .container { gap: 60px; }
             .demo-panel { flex-wrap: wrap; justify-content: center; }
-            .demo-queue-modal { right: 50%; transform: translateX(50%) translateY(-10px); }
-            .demo-queue-modal.visible { transform: translateX(50%) translateY(0); }
+            
+            /* Позиционирование очереди на мобильных (по центру) */
+            .demo-queue-modal { 
+                right: 50%; 
+                transform: translateX(50%) translateY(-10px); 
+            }
+            .demo-queue-modal.visible { 
+                transform: translateX(50%) translateY(0); 
+            }
         }
         @media (max-width: 480px) {
             .steps-grid { grid-template-columns: 1fr; }
@@ -344,7 +356,7 @@
             <h2 class="section-title" data-ru="Попробуй <span>сам</span>" data-en="Try it <span>yourself</span>">Попробуй <span>сам</span></h2>
             
             <div class="demo-container">
-                <!-- Макет панели -->
+                <!-- Макет панели (теперь имеет position: relative) -->
                 <div class="demo-panel" id="interactive-panel">
                     
                     <div class="demo-trigger" title="Toggle Panel">
@@ -364,7 +376,7 @@
                     
                     <div class="demo-toggle active" id="demo-toggle"></div>
 
-                    <!-- Демо-очередь -->
+                    <!-- Демо-очередь (выпадает вниз) -->
                     <div class="demo-queue-modal" id="demo-queue-modal">
                         <h4 data-ru="Очередь" data-en="Queue">Очередь <span id="demo-queue-close">×</span></h4>
                         
@@ -386,7 +398,9 @@
                         
                     </div>
                 </div>
-                <p style="font-size: 12px; color: var(--text-muted); margin-top: 15px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
+                
+                <!-- Текст с отступом, чтобы всплывающее окно его перекрывало, а не толкало -->
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 40px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
             </div>
         </section>
 
@@ -590,6 +604,7 @@
             } else {
                 demoStatus.className = 'demo-status';
                 demoStatus.innerText = isRussian ? 'Выключено' : 'Disabled';
+                demoQueueModal.classList.remove('visible'); // Закрываем очередь при выключении
             }
         });
 
@@ -610,8 +625,16 @@
             }
         });
 
-        demoQueueClose.addEventListener('click', () => {
+        demoQueueClose.addEventListener('click', (e) => {
+            e.stopPropagation();
             demoQueueModal.classList.remove('visible');
+        });
+
+        // Закрытие по клику вне окна
+        document.addEventListener('click', (e) => {
+            if (!demoQueueModal.contains(e.target) && !demoQueueBtn.contains(e.target)) {
+                demoQueueModal.classList.remove('visible');
+            }
         });
     </script>
 </body>
