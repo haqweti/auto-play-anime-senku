@@ -5,8 +5,8 @@
 // @description  Автозапуск, умная очередь, фикс паузы, поиск серий по ссылкам и API heartbeat
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
-// @updateURL    https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js
-// @downloadURL  https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js
+// @updateURL    https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js
+// @downloadURL  https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js
 // @grant        none
 // ==/UserScript==
 
