@@ -229,7 +229,7 @@
         .step-card p { font-size: 12px; color: var(--text-muted); }
 
         /* --- Секция 5: Обновления (Таймлайн) --- */
-        .updates-container { position: relative; text-align: left; padding-left: 20px; max-width: 800px; margin: 0 auto; }
+        .updates-container { position: relative; text-align: left; padding-left: 20px; max-width: 800px; margin: 0 auto; min-height: 100px; }
         .updates-container::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.1); }
         .update-card { position: relative; margin-bottom: 30px; padding-left: 30px; }
         .update-card::before { content: ''; position: absolute; left: -26px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(255,59,71,0.5); }
@@ -434,40 +434,15 @@
             </div>
         </section>
 
-        <!-- 5. LATEST UPDATES (Timeline) -->
+        <!-- 5. LATEST UPDATES (Dynamic Timeline) -->
         <section class="fade-in-up" style="animation-delay: 0.5s;">
             <h2 class="section-title" data-ru="Последние <span>обновления</span>" data-en="Latest <span>Updates</span>">Последние <span>обновления</span></h2>
             
-            <div class="updates-container">
-                
-                <!-- Версия 3.1 -->
-                <div class="update-card">
-                    <div class="update-header">
-                        <div class="update-version">v3.1</div>
-                        <div class="update-badge" data-ru="Актуальная" data-en="Latest">Актуальная</div>
-                        <div class="update-date">12.11.2026</div>
-                    </div>
-                    <ul class="update-list">
-                        <li data-ru="Автоматическое определение языка (RU/EN)" data-en="Automatic language detection (RU/EN)">Автоматическое определение языка (RU/EN)</li>
-                        <li data-ru="Добавлена английская документация" data-en="Added English documentation">Добавлена английская документация</li>
-                        <li data-ru="Обновление сайта и графики" data-en="Website and graphics update">Обновление сайта и графики</li>
-                    </ul>
-                </div>
-
-                <!-- Версия 3.0 -->
-                <div class="update-card" style="opacity: 0.7;">
-                    <div class="update-header">
-                        <div class="update-version">v3.0</div>
-                        <div class="update-date">10.11.2026</div>
-                    </div>
-                    <ul class="update-list">
-                        <li data-ru="Глобальный фикс паузы и звука" data-en="Major pause and volume fix">Глобальный фикс паузы и звука</li>
-                        <li data-ru="Добавлен умный плейлист" data-en="Added smart playlist">Добавлен умный плейлист</li>
-                        <li data-ru="Улучшенный алгоритм поиска серий" data-en="Improved episode search algorithm">Улучшенный алгоритм поиска серий</li>
-                    </ul>
-                </div>
-
+            <!-- Сюда JS скрипт будет автоматически вставлять данные с GitHub -->
+            <div class="updates-container" id="dynamic-updates">
+                <div style="text-align: center; color: var(--text-muted); font-size: 14px;">Загрузка обновлений...</div>
             </div>
+
             <div style="text-align: center; margin-top: 20px;">
                 <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" style="font-size: 12px; padding: 10px 20px;" data-ru="Вся история обновлений" data-en="Full Release History">Вся история обновлений</a>
             </div>
@@ -596,7 +571,6 @@
         const demoQueueBtn = document.getElementById('demo-queue-btn');
         const demoQueueClose = document.getElementById('demo-queue-close');
 
-        // Функция обновления статуса
         function updateDemoStatus() {
             if (!demoToggle.classList.contains('active')) {
                 demoStatus.className = 'demo-status';
@@ -609,23 +583,20 @@
             demoStatus.innerText = isRussian ? `Смотрю 3/12 | ${volText}` : `Watching 3/12 | ${volText}`;
         }
 
-        // Тумблер вкл/выкл
         demoToggle.addEventListener('click', () => {
             demoToggle.classList.toggle('active');
             updateDemoStatus();
             if (!demoToggle.classList.contains('active')) {
-                demoPanel.classList.remove('expanded'); // Закрываем панель при выключении
+                demoPanel.classList.remove('expanded'); 
                 demoQueueBtn.classList.remove('active-icon');
             }
         });
 
-        // Ползунок громкости
         demoVol.addEventListener('input', (e) => {
             e.target.style.backgroundSize = `${e.target.value}% 100%`;
             updateDemoStatus();
         });
 
-        // Открытие/закрытие выдвижной панели
         demoQueueBtn.addEventListener('click', () => {
             if (demoToggle.classList.contains('active')) {
                 demoPanel.classList.toggle('expanded');
@@ -633,12 +604,78 @@
             }
         });
 
-        // Закрытие по крестику
         demoQueueClose.addEventListener('click', (e) => {
             e.stopPropagation();
             demoPanel.classList.remove('expanded');
             demoQueueBtn.classList.remove('active-icon');
         });
+
+        // --- 4. Автоматическая загрузка обновлений с GitHub ---
+        async function fetchLatestReleases() {
+            const container = document.getElementById('dynamic-updates');
+            if (!container) return;
+
+            try {
+                const response = await fetch('https://api.github.com/repos/haqweti/auto-play-anime-senku/releases?per_page=3');
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const releases = await response.json();
+                
+                if (releases.length === 0) {
+                    container.innerHTML = `<div style="text-align: center; color: var(--text-muted);">${isRussian ? 'Нет доступных релизов.' : 'No releases available.'}</div>`;
+                    return;
+                }
+
+                container.innerHTML = ''; 
+
+                releases.forEach((release, index) => {
+                    const isLatest = index === 0; 
+                    const dateObj = new Date(release.published_at);
+                    const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}.${String(dateObj.getMonth() + 1).padStart(2, '0')}.${dateObj.getFullYear()}`;
+                    
+                    let bodyText = release.body || 'Описание отсутствует';
+                    let listItems = '';
+                    const lines = bodyText.split('\n').filter(line => line.trim().length > 0);
+                    
+                    // Берем только первые 4 строчки, чтобы не перегружать
+                    lines.slice(0, 4).forEach(line => {
+                        const cleanLine = line.replace(/^[*#\-\s]+/, '').trim();
+                        if (cleanLine) {
+                            listItems += `<li>${cleanLine}</li>`;
+                        }
+                    });
+
+                    const latestBadgeText = isRussian ? 'Актуальная' : 'Latest';
+                    const badgeHTML = isLatest ? `<div class="update-badge">${latestBadgeText}</div>` : '';
+                    const opacityStyle = isLatest ? '' : 'opacity: 0.7;';
+
+                    const cardHTML = `
+                        <div class="update-card" style="${opacityStyle}">
+                            <div class="update-header">
+                                <div class="update-version">${release.tag_name}</div>
+                                ${badgeHTML}
+                                <div class="update-date">${formattedDate}</div>
+                            </div>
+                            <ul class="update-list">
+                                ${listItems || '<li>Подробности в релизе на GitHub</li>'}
+                            </ul>
+                        </div>
+                    `;
+                    
+                    container.insertAdjacentHTML('beforeend', cardHTML);
+                });
+
+            } catch (error) {
+                console.error('Ошибка загрузки релизов:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted);">
+                        ${isRussian ? 'Не удалось загрузить обновления.' : 'Failed to load updates.'} <br>
+                        <a href="https://github.com/haqweti/auto-play-anime-senku/releases" style="color: var(--accent);">${isRussian ? 'Посмотреть на GitHub' : 'View on GitHub'}</a>
+                    </div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchLatestReleases);
     </script>
 </body>
 </html>
