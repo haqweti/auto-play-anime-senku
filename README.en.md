@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img width="100%" alt="Senku Ultimate Autoplay Banner" src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" style="border-radius: 16px;" />
+  <img width="1250" height="610" alt="{E69C423C-3153-4E89-9972-EA5999EB8A8B}" src="https://github.com/user-attachments/assets/7e3ca02e-10da-42e4-8822-207fb3475435" />
 </p>
 
 > [!IMPORTANT]
@@ -49,7 +49,7 @@
 ## Usage Instructions
 
 <p align="center">
-  <img width="100%" alt="Usage Instructions" src="https://github.com/user-attachments/assets/0e6bfed9-1f53-441d-83de-a8fd24fdca7a" style="border-radius: 16px;" />
+ <img width="877" height="830" alt="{96A7A059-3CB5-4BE2-86A0-95DEA3509003}" src="https://github.com/user-attachments/assets/1c1bf441-15ea-46a4-803a-328a769e8fb3" />
 </p>
 
 ## Installation
@@ -77,7 +77,7 @@
 The script supports automatic updates. You don't need to download and reinstall the file manually every time — all new fixes and features arrive automatically.
 
 <p align="center">
-  <img width="100%" src="https://github.com/user-attachments/assets/76ad49f7-f192-437c-a12c-140922d3ca49" alt="Script Update Scheme" style="border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+ <img width="818" height="786" alt="{8A84135B-5394-4298-A9E4-430322F1FA00}" src="https://github.com/user-attachments/assets/3fe66907-5ae6-4ee4-a972-fc49adf45fe1" />
 </p>
 
 > [!TIP]
