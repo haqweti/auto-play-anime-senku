@@ -1,0 +1,693 @@
+// ==UserScript==
+// @name         Senku Ultimate Autoplay (v27.0 - JSDoc Type-Safe)
+// @namespace    http://tampermonkey.net/
+// @version      27.0
+// @description  Автозапуск, умная очередь, выдвижная панель (с типами)
+// @match        *://senku.one/*
+// @match        *://*.senku.one/*
+// @grant        none
+// ==/UserScript==
+
+// @ts-check
+/* eslint-disable no-undef */
+
+(function() {
+    'use strict';
+
+    if (window.top !== window.self) return;
+    if (!window.location.href.includes('/watch')) return;
+
+    /**
+     * @typedef {Object} QueueItem
+     * @property {string} url - Ссылка на плеер
+     * @property {string} title - Название аниме
+     * @property {string} image - Ссылка на постер
+     * @property {number} startEp - Номер серии, с которой начнется просмотр
+     * @property {number|string} totalEps - Всего серий (или '?')
+     */
+
+    const STORAGE_KEY = 'senku_autonext_enabled';
+    const VOLUME_KEY = 'senku_autonext_volume';
+    const QUEUE_KEY = 'senku_autonext_queue';
+    const PANEL_OPEN_KEY = 'senku_panel_open';
+
+    let needsUserClickToPlay = false;
+    let userInteracted = false;
+
+    /**
+     * @param {string} context
+     * @param {Error|any} error
+     */
+    function logError(context, error) {
+        console.error(`\n🛑🛑🛑 [SENKU SKIP ERROR] 🛑🛑🛑\nКонтекст: ${context}\nОшибка: ${error.message || error}\nСтек:`, error.stack || 'Нет стека');
+        if (statusText) {
+            statusText.innerText = '❌ Ошибка (см. консоль)';
+            statusText.className = 'error';
+        }
+    }
+
+    if (localStorage.getItem(STORAGE_KEY) === null) localStorage.setItem(STORAGE_KEY, 'true');
+
+    let savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) || '1.0');
+    if (isNaN(savedVolume)) savedVolume = 1.0;
+
+    /** @type {QueueItem[]} */
+    let queue = [];
+    try {
+        const saved = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+        queue = saved.map((/** @type {any} */ item) => {
+            if (typeof item === 'string') {
+                return { url: item, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' };
+            }
+            return item;
+        });
+    } catch(e) {}
+
+    // --- 1. СТИЛИ ---
+    if (!document.getElementById('senku-font')) {
+        const link = document.createElement('link');
+        link.id = 'senku-font';
+        link.href = 'https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }
+
+    const style = document.createElement('style');
+    style.textContent = `
+        /* --- ГЛАВНАЯ ПАНЕЛЬ --- */
+        #senku-autonext-panel {
+            position: fixed !important;
+            top: 15px !important;
+            right: 15px !important;
+            left: auto !important;
+            bottom: auto !important;
+            background: rgba(22, 22, 22, 0.92) !important;
+            backdrop-filter: blur(22px) saturate(150%) !important;
+            -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+            color: #fff !important;
+            padding: 6px 8px !important;
+            border-radius: 16px !important;
+            z-index: 2147483647 !important;
+            font-family: "Unbounded", system-ui, sans-serif !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            display: flex !important;
+            flex-direction: row-reverse !important;
+            align-items: center !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+            border: 1px solid rgba(255,255,255,0.06) !important;
+            height: 40px !important;
+            box-sizing: border-box !important;
+            transition: box-shadow 0.3s, border-color 0.3s !important;
+            pointer-events: auto !important;
+            user-select: none;
+            overflow: hidden;
+        }
+        #senku-autonext-panel:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8) !important; border-color: rgba(255,255,255,0.15) !important; }
+
+        #senku-trigger-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; flex-shrink: 0;
+            border-radius: 8px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        #senku-trigger-btn:hover { background: rgba(255,255,255,0.1); }
+
+        .senku-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; transition: opacity 0.2s, transform 0.3s; cursor: pointer; flex-shrink: 0; }
+        #senku-trigger-btn:hover .senku-icon { opacity: 1; stroke: #ff3b47; }
+        #senku-autonext-panel.collapsed #senku-trigger-btn .senku-icon { transform: rotate(180deg); }
+
+        #senku-panel-content {
+            display: flex; align-items: center; gap: 10px;
+            max-width: 0; opacity: 0; overflow: hidden;
+            transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.4s;
+            margin-right: 0;
+        }
+        #senku-autonext-panel:not(.collapsed) #senku-panel-content {
+            max-width: 500px; opacity: 1; margin-right: 8px;
+        }
+
+        #senku-status-text { color: rgba(255, 255, 255, 0.7) !important; font-size: 10.5px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; letter-spacing: 0.02em; transition: color 0.3s; white-space: nowrap; }
+        #senku-status-text.error { color: #ff3b47 !important; }
+        #senku-status-text.active { color: #fff !important; }
+
+        .senku-toggle { position: relative !important; width: 36px !important; height: 20px !important; flex: 0 0 36px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .16) !important; transition: background-color .28s ease !important; border: none !important; cursor: pointer !important; padding: 0 !important; margin-left: 4px; }
+        .senku-toggle::after { content: "" !important; position: absolute !important; top: 2px !important; left: 2px !important; width: 16px !important; height: 16px !important; border-radius: 50% !important; background: #fff !important; box-shadow: 0 1px 3px rgba(0, 0, 0, .4) !important; transition: transform .32s cubic-bezier(.34, 1.36, .64, 1), width .2s ease !important; }
+        .senku-toggle:active::after { width: 19px !important; }
+        .senku-toggle.active { background: #ff3b47 !important; }
+        .senku-toggle.active::after { transform: translateX(16px) !important; }
+        .senku-toggle.active:active::after { transform: translateX(13px) !important; }
+
+        .senku-volume-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 8px; margin-left: 4px; flex-shrink: 0; }
+        .senku-vol-icon { width: 14px; height: 14px; fill: rgba(255,255,255,0.6); flex-shrink: 0; }
+        #senku-volume-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.22); outline: none; cursor: pointer; background-image: linear-gradient(#ff3b47, #ff3b47); background-size: 100% 100%; background-repeat: no-repeat; flex-shrink: 0; }
+        #senku-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); transition: transform 0.1s; }
+        #senku-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
+
+        .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
+        .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
+
+        /* --- ВЫДВИЖНАЯ ПАНЕЛЬ ОЧЕРЕДИ --- */
+        #senku-queue-modal {
+            position: fixed !important;
+            top: 65px !important;
+            right: 15px !important;
+            left: auto !important;
+            transform: translateY(-10px) !important;
+            opacity: 0;
+            pointer-events: none;
+            background: rgba(22, 22, 22, 0.98) !important;
+            backdrop-filter: blur(25px) saturate(150%) !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            border-radius: 20px !important;
+            padding: 20px !important;
+            z-index: 2147483646 !important;
+            color: #fff !important;
+            font-family: "Unbounded", system-ui, sans-serif !important;
+            font-size: 12px !important;
+            width: 420px !important;
+            max-width: 90vw !important;
+            max-height: calc(100vh - 85px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 15px !important;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9) !important;
+            transition: opacity 0.3s ease, transform 0.3s ease !important;
+        }
+
+        #senku-queue-modal.visible {
+            opacity: 1;
+            transform: translateY(0) !important;
+            pointer-events: auto;
+        }
+
+        .senku-queue-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; }
+        .senku-queue-close { cursor: pointer; color: rgba(255,255,255,0.5); font-size: 18px; transition: color 0.2s; }
+        .senku-queue-close:hover { color: #ff3b47; }
+        .senku-queue-input-wrap { display: flex; gap: 8px; }
+        #senku-queue-input { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 10px; border-radius: 8px; font-family: inherit; font-size: 11px; outline: none; transition: border-color 0.2s; }
+        #senku-queue-input:focus { border-color: #ff3b47; }
+        .senku-btn { background: #ff3b47; color: #fff; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 11px; transition: background 0.2s; }
+        .senku-btn:hover { background: #e63540; }
+        .senku-btn.secondary { background: rgba(255,255,255,0.1); }
+        .senku-btn.secondary:hover { background: rgba(255,255,255,0.2); }
+        #senku-queue-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; padding-right: 5px; }
+        #senku-queue-list::-webkit-scrollbar { width: 4px; }
+        #senku-queue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+        .senku-queue-item { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); transition: background 0.2s; }
+        .senku-queue-item:hover { background: rgba(255,255,255,0.08); }
+        .senku-queue-img { width: 40px; height: 56px; border-radius: 6px; object-fit: cover; background: rgba(0,0,0,0.5); flex-shrink: 0; }
+        .senku-queue-info { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+        .senku-queue-title { font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .senku-queue-ep { font-size: 9px; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .senku-queue-controls { display: flex; gap: 4px; flex-shrink: 0; }
+        .senku-queue-btn { background: transparent; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 4px; font-size: 14px; transition: color 0.2s; display: flex; align-items: center; justify-content: center; }
+        .senku-queue-btn:hover { color: #fff; }
+        .senku-queue-btn.delete:hover { color: #ff3b47; }
+    `;
+    document.head.appendChild(style);
+
+    // --- 2. ЭЛЕМЕНТЫ ПАНЕЛИ ---
+    /** @type {HTMLDivElement} */
+    const panel = document.createElement('div');
+    panel.id = 'senku-autonext-panel';
+
+    const isPanelOpen = localStorage.getItem(PANEL_OPEN_KEY) !== 'false';
+    if (!isPanelOpen) panel.classList.add('collapsed');
+
+    /** @type {HTMLDivElement} */
+    const triggerBtn = document.createElement('div');
+    triggerBtn.id = 'senku-trigger-btn';
+    const iconPlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    iconPlay.setAttribute('class', 'senku-icon');
+    iconPlay.setAttribute('viewBox', '0 0 24 24');
+    iconPlay.innerHTML = '<polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line>';
+    triggerBtn.appendChild(iconPlay);
+
+    /** @type {HTMLDivElement} */
+    const contentWrap = document.createElement('div');
+    contentWrap.id = 'senku-panel-content';
+
+    /** @type {HTMLSpanElement} */
+    const statusText = document.createElement('span');
+    statusText.id = 'senku-status-text';
+    statusText.innerText = 'Ожидание...';
+
+    const divider = document.createElement('div');
+    divider.className = 'senku-divider';
+
+    const volContainer = document.createElement('div');
+    volContainer.className = 'senku-volume-wrap';
+    const volIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    volIcon.setAttribute('class', 'senku-vol-icon');
+    volIcon.setAttribute('viewBox', '0 0 24 24');
+    volIcon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>';
+
+    /** @type {HTMLInputElement} */
+    const volSlider = document.createElement('input');
+    volSlider.type = 'range';
+    volSlider.id = 'senku-volume-slider';
+    volSlider.min = '0'; volSlider.max = '1'; volSlider.step = '0.05';
+    volSlider.value = String(savedVolume);
+    volSlider.style.backgroundSize = `${savedVolume * 100}% 100%`;
+
+    volSlider.addEventListener('input', (e) => {
+        const target = /** @type {HTMLInputElement} */ (e.target);
+        savedVolume = parseFloat(target.value);
+        target.style.backgroundSize = `${savedVolume * 100}% 100%`;
+        localStorage.setItem(VOLUME_KEY, String(savedVolume));
+    });
+
+    volContainer.appendChild(volIcon);
+    volContainer.appendChild(volSlider);
+
+    const iconQueue = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    iconQueue.setAttribute('class', 'senku-queue-icon');
+    iconQueue.setAttribute('viewBox', '0 0 24 24');
+    iconQueue.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>';
+    iconQueue.title = "Очередь воспроизведения";
+
+    /** @type {HTMLButtonElement} */
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'senku-toggle';
+
+    function updateButtonState() {
+        const isEnabled = localStorage.getItem(STORAGE_KEY) !== 'false';
+        if (isEnabled) {
+            toggleBtn.classList.add('active');
+            if (statusText.innerText === 'Выключено') statusText.innerText = 'Ожидание...';
+        } else {
+            toggleBtn.classList.remove('active');
+            statusText.innerText = 'Выключено';
+            statusText.className = '';
+        }
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        const isEnabled = localStorage.getItem(STORAGE_KEY) !== 'false';
+        localStorage.setItem(STORAGE_KEY, isEnabled ? 'false' : 'true');
+        updateButtonState();
+    });
+
+    contentWrap.appendChild(statusText);
+    contentWrap.appendChild(divider);
+    contentWrap.appendChild(volContainer);
+    contentWrap.appendChild(iconQueue);
+    contentWrap.appendChild(toggleBtn);
+
+    panel.appendChild(triggerBtn);
+    panel.appendChild(contentWrap);
+
+    // --- 3. МОДАЛКА ОЧЕРЕДИ ---
+    /** @type {HTMLDivElement} */
+    const queueModal = document.createElement('div');
+    queueModal.id = 'senku-queue-modal';
+    queueModal.innerHTML = `
+        <div class="senku-queue-header"><span>Очередь</span><span class="senku-queue-close">×</span></div>
+        <div class="senku-queue-input-wrap">
+            <input type="text" id="senku-queue-input" placeholder="Ссылка на /anime/... или /watch/...">
+            <button class="senku-btn" id="senku-queue-add">Доб.</button>
+        </div>
+        <div id="senku-queue-list"></div>
+        <div style="display:flex; justify-content:space-between; margin-top: 10px;">
+             <button class="senku-btn secondary" id="senku-queue-reset" style="color:#ff3b47;">Сбросить плагин</button>
+             <button class="senku-btn secondary" id="senku-queue-clear">Очистить всё</button>
+        </div>
+    `;
+
+    const queueInput = /** @type {HTMLInputElement} */ (queueModal.querySelector('#senku-queue-input'));
+    const queueList = /** @type {HTMLDivElement} */ (queueModal.querySelector('#senku-queue-list'));
+
+    iconQueue.addEventListener('click', (e) => { e.stopPropagation(); queueModal.classList.toggle('visible'); });
+    const queueCloseBtn = /** @type {HTMLSpanElement} */ (queueModal.querySelector('.senku-queue-close'));
+    queueCloseBtn.addEventListener('click', () => queueModal.classList.remove('visible'));
+
+    function saveQueue() {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+        renderQueue();
+    }
+
+    // --- 4. ПАРСЕР НАЗВАНИЙ И СЕРИЙ ---
+    /**
+     * @param {string} originalUrl
+     * @returns {Promise<QueueItem>}
+     */
+    async function fetchAnimeInfo(originalUrl) {
+        let title = 'Загрузка...';
+        let image = '';
+        let id = '';
+        let startEp = 1;
+        /** @type {number|string} */
+        let totalEps = '?';
+
+        const idMatch = originalUrl.match(/\/anime\/(\d+)/) || originalUrl.match(/\/watch\/(\d+)/) || originalUrl.match(/[?&]id=(\d+)/);
+        const epMatch = originalUrl.match(/episode=(\d+)/) || originalUrl.match(/\/watch\/\d+\/(\d+)/);
+
+        if (idMatch) id = idMatch[1];
+        if (epMatch) startEp = parseInt(epMatch[1], 10);
+
+        let finalUrl = originalUrl;
+        if (id) {
+            finalUrl = `${window.location.origin}/watch/${id}?episode=${startEp}&season=1`;
+
+            try {
+                const res = await fetch(`${window.location.origin}/anime/${id}`);
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+
+                const pageTitle = doc.querySelector('title')?.textContent || '';
+                title = pageTitle.replace(/ — Senku| \| Senku| смотреть онлайн.*$/gi, '').trim();
+
+                if (!title || title.length < 3) {
+                    const ogTitle = doc.querySelector('meta[property="og:title"]');
+                    if (ogTitle) title = ogTitle.getAttribute('content') || title;
+                }
+
+                const pageText = doc.body.textContent || "";
+                const totalMatch = pageText.match(/Серии\s*(\d+)/i) || pageText.match(/Серий:\s*(\d+)/i) || pageText.match(/Эпизодов:\s*(\d+)/i);
+                if (totalMatch) {
+                    totalEps = parseInt(totalMatch[1], 10);
+                }
+
+                const ogImage = doc.querySelector('meta[property="og:image"]');
+                if (ogImage) image = ogImage.getAttribute('content') || image;
+            } catch (e) {
+                console.warn(`[SENKU SKIP] Failed to parse HTML for ID ${id}`, e);
+                title = `Аниме (ID: ${id})`;
+            }
+        } else {
+            const parts = originalUrl.split('/').filter(Boolean);
+            title = parts[parts.length - 1].split('?')[0] || 'Ссылка';
+        }
+
+        return { title, image, url: finalUrl, startEp, totalEps };
+    }
+
+    function renderQueue() {
+        queueList.innerHTML = '';
+        if (queue.length === 0) {
+            queueList.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">Очередь пуста</div>';
+            return;
+        }
+
+        queue.forEach((item, index) => {
+            const el = document.createElement('div');
+            el.className = 'senku-queue-item';
+
+            const epText = `Серия ${item.startEp || 1}` + (item.totalEps && item.totalEps !== '?' ? ` (Всего: ${item.totalEps})` : '');
+
+            el.innerHTML = `
+                <img class="senku-queue-img" src="${item.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}" alt="poster">
+                <div class="senku-queue-info">
+                    <div class="senku-queue-title" title="${item.title}">${index + 1}. ${item.title}</div>
+                    <div class="senku-queue-ep">${epText}</div>
+                </div>
+                <div class="senku-queue-controls">
+                    <button class="senku-queue-btn up" ${index === 0 ? 'disabled style="opacity:0.2"' : ''}>▲</button>
+                    <button class="senku-queue-btn down" ${index === queue.length - 1 ? 'disabled style="opacity:0.2"' : ''}>▼</button>
+                    <button class="senku-queue-btn delete">🗑</button>
+                </div>
+            `;
+
+            const upBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.up'));
+            const downBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.down'));
+            const delBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.delete'));
+
+            upBtn.addEventListener('click', () => {
+                if (index > 0) {
+                    [queue[index - 1], queue[index]] = [queue[index], queue[index - 1]];
+                    saveQueue();
+                }
+            });
+
+            downBtn.addEventListener('click', () => {
+                if (index < queue.length - 1) {
+                    [queue[index + 1], queue[index]] = [queue[index], queue[index + 1]];
+                    saveQueue();
+                }
+            });
+
+            delBtn.addEventListener('click', () => {
+                queue.splice(index, 1);
+                saveQueue();
+            });
+
+            queueList.appendChild(el);
+        });
+    }
+
+    const addBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-add'));
+    addBtn.addEventListener('click', async () => {
+        let rawUrl = queueInput.value.trim();
+        if (!rawUrl) return;
+        if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
+        try {
+            new URL(rawUrl);
+            queueInput.value = '';
+            const newItem = { url: rawUrl, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' };
+            queue.push(newItem);
+            saveQueue();
+
+            fetchAnimeInfo(rawUrl).then(info => {
+                const idx = queue.indexOf(newItem);
+                if (idx !== -1) {
+                    queue[idx] = info;
+                    saveQueue();
+                }
+            }).catch(() => { newItem.title = 'Ошибка загрузки'; saveQueue(); });
+        } catch (e) { alert('Некорректная ссылка!'); }
+    });
+
+    const resetBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-reset'));
+    resetBtn.addEventListener('click', () => {
+        if (confirm('Сбросить все настройки плагина?')) { localStorage.clear(); location.reload(); }
+    });
+
+    const clearBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-clear'));
+    clearBtn.addEventListener('click', () => {
+        if (confirm('Очистить всю очередь?')) { queue = []; saveQueue(); }
+    });
+
+    renderQueue();
+
+    // --- 5. ДОБАВЛЕНИЕ НА СТРАНИЦУ И КЛИК ---
+    function addPanel() {
+        if (!document.getElementById('senku-autonext-panel')) { document.body.appendChild(panel); updateButtonState(); }
+        if (!document.getElementById('senku-queue-modal')) { document.body.appendChild(queueModal); }
+    }
+    const bodyObserver = new MutationObserver(addPanel);
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+    addPanel();
+
+    triggerBtn.addEventListener('click', () => {
+        panel.classList.toggle('collapsed');
+        const isNowOpen = !panel.classList.contains('collapsed');
+        localStorage.setItem(PANEL_OPEN_KEY, String(isNowOpen));
+    });
+
+    // --- 6. АВТОМАТИЗАЦИЯ И ТИХИЙ ЗВУК ---
+    let lastTime = 0;
+    let isProcessing = false;
+    /** @type {HTMLVideoElement|null} */
+    let lastVideoEl = null;
+    let pauseActionState = 0;
+    let pauseActionTime = 0;
+
+    /**
+     * @param {string} text
+     * @param {'normal'|'error'|'active'} [type='normal']
+     */
+    function updateStatus(text, type = 'normal') {
+        if (!statusText) return;
+        statusText.innerText = text;
+        statusText.className = '';
+        if (type === 'error') statusText.classList.add('error');
+        else if (type === 'active') statusText.classList.add('active');
+    }
+
+    /**
+     * @param {HTMLElement|null} el
+     * @returns {boolean}
+     */
+    function clickElement(el) {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        el.dispatchEvent(new MouseEvent('click', { view: window, bubbles: true, cancelable: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+        return true;
+    }
+
+    document.addEventListener('click', () => {
+        userInteracted = true;
+        if (!needsUserClickToPlay) return;
+        needsUserClickToPlay = false;
+        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+        if (!iframe) return;
+        try {
+            const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
+            if (video && video.paused) {
+                video.play().catch(() => {});
+                updateStatus('▶️ Запущено кликом!', 'active');
+            }
+        } catch(e) {}
+    }, { capture: true });
+
+    function forceVolume() {
+        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+        if (!iframe) return;
+        try {
+            const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
+            if (video && !video.paused && video.currentTime > 0.5) {
+                if (Math.abs(video.volume - savedVolume) > 0.01) {
+                    video.volume = savedVolume;
+                }
+                if (savedVolume === 0) {
+                    video.muted = true;
+                } else if (video.muted && userInteracted) {
+                    video.muted = false;
+                }
+            }
+        } catch(e) {}
+    }
+
+    setInterval(forceVolume, 200);
+
+    setInterval(() => {
+        if (localStorage.getItem(STORAGE_KEY) === 'false') return;
+        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+        if (!iframe) return;
+
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) return;
+
+            const epMatch = iframe.src.match(/episode=(\d+)/) || iframe.src.match(/ep=(\d+)/);
+            const currentEp = epMatch ? parseInt(epMatch[1], 10) : 1;
+
+            const video = /** @type {HTMLVideoElement|null} */ (iframeDoc.querySelector('video'));
+            if (!video) return;
+
+            if (video !== lastVideoEl) {
+                lastVideoEl = video; isProcessing = false; lastTime = 0; pauseActionState = 0; pauseActionTime = 0;
+                needsUserClickToPlay = false;
+            }
+
+            const sideMenuLinks = Array.from(document.querySelectorAll('a')).filter(a => a.href.includes('/watch') && /Серия\s*\d+/i.test(a.textContent));
+            const totalEps = sideMenuLinks.length > 0 ? sideMenuLinks.length : '?';
+            const volText = savedVolume === 0 ? 'Mute' : `${Math.round(savedVolume * 100)}%`;
+
+            if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5)) {
+                if (isProcessing) return;
+                isProcessing = true;
+
+                const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
+                let card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
+
+                if (card && card.nextElementSibling) {
+                    updateStatus(`Включаю ${currentEp + 1}...`, 'active');
+                    clickElement(/** @type {HTMLElement} */(card.nextElementSibling));
+                } else {
+                    if (queue.length > 0) {
+                        const nextItem = queue.shift();
+                        if (nextItem) {
+                            saveQueue();
+                            updateStatus(`Переход: ${nextItem.title}`, 'active');
+                            setTimeout(() => { window.location.href = nextItem.url; }, 1500);
+                        }
+                    } else {
+                        updateStatus(`Конец сезона/очереди`, 'error');
+                    }
+                }
+                setTimeout(() => { isProcessing = false; }, 5000);
+                return;
+            }
+
+            if (video.paused && !video.ended) {
+                if (pauseActionState === 0) {
+                    const resumeBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.resume-continue'));
+                    const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframe.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
+
+                    if (isResumeVisible && resumeBtn) {
+                        const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
+                        updateStatus(`Продолжаю: ${timeMatch ? timeMatch[0] : ''}`, 'active');
+                        clickElement(resumeBtn);
+                    } else {
+                        updateStatus(`Пауза (жду клика)...`, 'error');
+                    }
+                    pauseActionState = 1;
+                    pauseActionTime = Date.now();
+                }
+                else if (pauseActionState === 1) {
+                    if (Date.now() - pauseActionTime > 3000) {
+                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                        updateStatus(`Жму Play...`, 'active');
+                        if (playBtn) clickElement(playBtn);
+                        else clickElement(video);
+
+                        video.play().catch(() => {
+                            needsUserClickToPlay = true;
+                            updateStatus(`Кликни по сайту!`, 'error');
+                        });
+                        pauseActionState = 2;
+                        pauseActionTime = Date.now();
+                    } else {
+                        updateStatus(`Загрузка...`, 'normal');
+                    }
+                }
+                else if (pauseActionState === 2) {
+                    if (Date.now() - pauseActionTime > 3000) {
+                        updateStatus(`Пинаю видео...`, 'active');
+                        clickElement(video);
+                        video.play().catch(() => {
+                            needsUserClickToPlay = true;
+                            updateStatus(`Кликни по сайту!`, 'error');
+                        });
+                        pauseActionState = 3;
+                        pauseActionTime = Date.now();
+                    } else {
+                        updateStatus(`Загрузка...`, 'normal');
+                    }
+                }
+                else if (pauseActionState === 3) {
+                    const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
+                    if (wait <= 0) {
+                        updateStatus(`Повторный Play...`, 'active');
+                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                        if (playBtn) clickElement(playBtn);
+                        else clickElement(video);
+                        video.play().catch(() => {});
+                        pauseActionState = 2;
+                        pauseActionTime = Date.now();
+                    } else {
+                        updateStatus(`Жду ${wait}с...`, 'error');
+                    }
+                }
+            } else {
+                pauseActionState = 0; pauseActionTime = 0; needsUserClickToPlay = false;
+
+                if (video.currentTime > 0) updateStatus(`Смотрю ${currentEp}/${totalEps} | ${volText}`, 'normal');
+
+                if (Math.abs(video.currentTime - lastTime) < 0.1) {
+                    if (pauseActionTime === 0) pauseActionTime = Date.now();
+                    const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
+                    if (secPassed > 20) {
+                        updateStatus(`Буферизация, пихаю!`, 'error');
+                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                        if (playBtn) clickElement(playBtn);
+                        else clickElement(video);
+                        video.play().catch(() => {});
+                        pauseActionTime = 0;
+                    }
+                } else {
+                    pauseActionTime = 0;
+                }
+            }
+            lastTime = video.currentTime;
+
+        } catch (e) {
+            logError('Основной цикл автоматизации', /** @type {Error} */(e));
+        }
+    }, 1000);
+})();
