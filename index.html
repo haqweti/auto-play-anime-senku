@@ -120,20 +120,12 @@
 
         /* --- Секция 2: Возможности в действии --- */
         .features-section { position: relative; }
-        /* Декоративный элемент на фоне секции (п.4) */
         .features-bg-art {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 80%; height: 80%;
             background-image: url('https://i.pinimg.com/736x/83/5d/17/835d17cb5b78e542e44df892347ce451.jpg');
-            background-size: contain;
-            background-position: center;
-            background-repeat: no-repeat;
-            opacity: 0.05; /* Едва заметный фон */
-            z-index: 0;
-            pointer-events: none;
-            filter: grayscale(100%);
+            background-size: contain; background-position: center; background-repeat: no-repeat;
+            opacity: 0.05; z-index: 0; pointer-events: none; filter: grayscale(100%);
         }
 
         .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; position: relative; z-index: 1; }
@@ -147,34 +139,40 @@
         .feature-card h3 { color: #fff; font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
         .feature-card h3::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
         .feature-card p { color: var(--text-muted); font-size: 13px; margin-bottom: 15px; flex-grow: 1; }
-        
-        .feature-img { 
-            width: 100%; border-radius: 8px; margin-top: auto; 
-            border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
+        .feature-img { width: 100%; border-radius: 8px; margin-top: auto; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 
-        /* --- Секция 3: Интерактивная демонстрация (п.5) --- */
-        /* Убрали overflow: hidden, чтобы всплывающее окно не обрезалось */
+        /* --- Секция 3: Интерактивная демонстрация --- */
         .demo-section { background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 24px; padding: 40px 20px; position: relative; }
         
-        .demo-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 20px; position: relative; z-index: 10; /* Подняли z-index, чтобы окно было поверх текста */
+        .demo-container { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; position: relative; z-index: 10; }
+        
+        /* НОВАЯ ПАНЕЛЬ: Единый контейнер, который раскрывается */
+        .demo-panel-wrapper {
+            background: rgba(22, 22, 22, 0.92); 
+            backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+            border: 1px solid rgba(255,255,255,0.08); 
+            border-radius: var(--radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+            width: 100%; 
+            max-width: 500px; /* Задаем ширину, чтобы очередь смотрелась хорошо */
+            overflow: hidden; 
+            transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1); /* Плавное раскрытие */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Верхняя часть панели (кнопки) */
+        .demo-panel-top {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px; font-size: 11px; font-weight: 600;
+            flex-shrink: 0; /* Чтобы не сжималась */
         }
         
-        /* Стилизация под настоящую панель из скрипта */
-        .demo-panel {
-            background: rgba(22, 22, 22, 0.92); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-            border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius);
-            padding: 10px 14px; display: flex; align-items: center; gap: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6); font-size: 11px; font-weight: 600; width: fit-content;
-            position: relative; /* ДОБАВЛЕНО: чтобы окно позиционировалось относительно панели */
-        }
         .demo-trigger { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
         .demo-trigger:hover { opacity: 1; }
         .demo-trigger svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
         
-        .demo-status { color: rgba(255,255,255,0.7); white-space: nowrap; }
+        .demo-status { color: rgba(255,255,255,0.7); white-space: nowrap; margin-right: auto; }
         .demo-status.active { color: #fff; }
         
         .demo-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); }
@@ -184,32 +182,41 @@
         .demo-vol-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.22); background-image: linear-gradient(var(--accent), var(--accent)); background-size: 50% 100%; background-repeat: no-repeat; outline: none; cursor: pointer; }
         .demo-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; }
 
-        .demo-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; cursor: pointer; opacity: 0.7; margin-left: 4px; }
+        .demo-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; cursor: pointer; opacity: 0.7; margin-left: 4px; transition: stroke 0.2s; }
         .demo-queue-icon:hover { opacity: 1; stroke: var(--accent); }
+        .demo-queue-icon.active-icon { stroke: var(--accent); opacity: 1; }
 
         .demo-toggle { width: 36px; height: 20px; border-radius: 999px; background: rgba(255,255,255,0.16); position: relative; cursor: pointer; transition: background 0.3s; margin-left: 4px; }
         .demo-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.3s; }
         .demo-toggle.active { background: var(--accent); }
         .demo-toggle.active::after { transform: translateX(16px); }
 
-        /* Демо-очередь */
-        .demo-queue-modal {
-            position: absolute; 
-            top: 100%; /* Позиционируется ровно под панелью */
-            right: 0; 
-            margin-top: 10px;
-            background: rgba(22, 22, 22, 0.98); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px; padding: 20px; width: 300px; text-align: left;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
-            opacity: 0; pointer-events: none; transform: translateY(-10px);
-            transition: opacity 0.3s, transform 0.3s; z-index: 50;
+        /* Нижняя часть (очередь), которая скрыта */
+        .demo-queue-content {
+            max-height: 0; /* Изначально скрыто */
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            padding: 0 14px;
+            background: rgba(0,0,0,0.2);
         }
-        .demo-queue-modal.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
-        .demo-queue-modal h4 { font-size: 14px; margin-bottom: 15px; display: flex; justify-content: space-between; }
-        .demo-queue-modal h4 span { cursor: pointer; color: rgba(255,255,255,0.5); font-size: 18px; line-height: 1; }
+        
+        /* Когда панель раскрыта */
+        .demo-panel-wrapper.expanded {
+            height: auto;
+        }
+        .demo-panel-wrapper.expanded .demo-queue-content {
+            max-height: 250px; /* Достаточно для контента */
+            opacity: 1;
+            padding-bottom: 14px;
+        }
+
+        /* Стили элементов внутри очереди */
+        .demo-queue-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; margin: 10px 0; }
+        .demo-queue-header span { cursor: pointer; color: rgba(255,255,255,0.5); font-size: 18px; line-height: 1; }
         .demo-queue-item { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; margin-bottom: 8px; }
         .demo-queue-img { width: 30px; height: 40px; border-radius: 4px; background: #333; object-fit: cover; }
-        .demo-queue-info { font-size: 10px; }
+        .demo-queue-info { font-size: 10px; text-align: left; }
         .demo-queue-title { font-weight: bold; color: #fff; margin-bottom: 2px; }
         .demo-queue-ep { color: var(--accent); font-size: 8px; }
 
@@ -224,10 +231,8 @@
         /* --- Секция 5: Обновления (Таймлайн) --- */
         .updates-container { position: relative; text-align: left; padding-left: 20px; max-width: 800px; margin: 0 auto; }
         .updates-container::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.1); }
-        
         .update-card { position: relative; margin-bottom: 30px; padding-left: 30px; }
         .update-card::before { content: ''; position: absolute; left: -26px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(255,59,71,0.5); }
-        
         .update-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; }
         .update-version { font-size: 18px; font-weight: 700; color: #fff; }
         .update-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
@@ -263,22 +268,15 @@
             .steps-grid { grid-template-columns: 1fr 1fr; }
             h1 { font-size: 28px; }
             .container { gap: 60px; }
-            .demo-panel { flex-wrap: wrap; justify-content: center; }
-            
-            /* Позиционирование очереди на мобильных (по центру) */
-            .demo-queue-modal { 
-                right: 50%; 
-                transform: translateX(50%) translateY(-10px); 
-            }
-            .demo-queue-modal.visible { 
-                transform: translateX(50%) translateY(0); 
-            }
+            .demo-panel-top { flex-wrap: wrap; justify-content: center; }
+            .demo-status { margin-right: 0; width: 100%; text-align: center; margin-bottom: 5px; }
         }
         @media (max-width: 480px) {
             .steps-grid { grid-template-columns: 1fr; }
             .buttons { flex-direction: column; width: 100%; }
             a.btn { width: 100%; }
             body::before { filter: blur(3px) brightness(0.3); }
+            .demo-panel-wrapper { max-width: 100%; }
         }
     </style>
 </head>
@@ -356,29 +354,35 @@
             <h2 class="section-title" data-ru="Попробуй <span>сам</span>" data-en="Try it <span>yourself</span>">Попробуй <span>сам</span></h2>
             
             <div class="demo-container">
-                <!-- Макет панели (теперь имеет position: relative) -->
-                <div class="demo-panel" id="interactive-panel">
+                <!-- Единая панель, которая раскрывается -->
+                <div class="demo-panel-wrapper" id="interactive-panel">
                     
-                    <div class="demo-trigger" title="Toggle Panel">
-                        <svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="20"></line></svg>
+                    <!-- Верхняя часть (статичная) -->
+                    <div class="demo-panel-top">
+                        <div class="demo-trigger" title="Toggle Panel">
+                            <svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="20"></line></svg>
+                        </div>
+
+                        <span class="demo-status active" id="demo-status-text" data-ru="Смотрю 3/12 | Mute" data-en="Watching 3/12 | Mute">Смотрю 3/12 | Mute</span>
+                        
+                        <div class="demo-divider"></div>
+                        
+                        <div class="demo-vol-wrap">
+                            <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                            <input type="range" class="demo-vol-slider" id="demo-vol" min="0" max="100" value="50">
+                        </div>
+                        
+                        <svg class="demo-queue-icon" id="demo-queue-btn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                        
+                        <div class="demo-toggle active" id="demo-toggle"></div>
                     </div>
 
-                    <span class="demo-status active" id="demo-status-text" data-ru="Смотрю 3/12 | Mute" data-en="Watching 3/12 | Mute">Смотрю 3/12 | Mute</span>
-                    
-                    <div class="demo-divider"></div>
-                    
-                    <div class="demo-vol-wrap">
-                        <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                        <input type="range" class="demo-vol-slider" id="demo-vol" min="0" max="100" value="50">
-                    </div>
-                    
-                    <svg class="demo-queue-icon" id="demo-queue-btn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                    
-                    <div class="demo-toggle active" id="demo-toggle"></div>
-
-                    <!-- Демо-очередь (выпадает вниз) -->
-                    <div class="demo-queue-modal" id="demo-queue-modal">
-                        <h4 data-ru="Очередь" data-en="Queue">Очередь <span id="demo-queue-close">×</span></h4>
+                    <!-- Нижняя часть (выдвижная очередь) -->
+                    <div class="demo-queue-content" id="demo-queue-content">
+                        <div class="demo-queue-header">
+                            <span data-ru="Очередь" data-en="Queue">Очередь</span>
+                            <span id="demo-queue-close">×</span>
+                        </div>
                         
                         <div class="demo-queue-item">
                             <img src="https://i.pinimg.com/736x/83/5d/17/835d17cb5b78e542e44df892347ce451.jpg" class="demo-queue-img" style="object-fit: cover; object-position: top;">
@@ -395,12 +399,11 @@
                                 <div class="demo-queue-ep" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
                             </div>
                         </div>
-                        
                     </div>
+
                 </div>
                 
-                <!-- Текст с отступом, чтобы всплывающее окно его перекрывало, а не толкало -->
-                <p style="font-size: 12px; color: var(--text-muted); margin-top: 40px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 20px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
             </div>
         </section>
 
@@ -585,56 +588,56 @@
         const cards = document.querySelectorAll('[data-tilt]');
         cards.forEach(card => initTilt(card));
 
-        // --- 3. Интерактивная демонстрация (п.5) ---
+        // --- 3. Интерактивная демонстрация (Выдвижная панель) ---
+        const demoPanel = document.getElementById('interactive-panel');
         const demoToggle = document.getElementById('demo-toggle');
         const demoStatus = document.getElementById('demo-status-text');
         const demoVol = document.getElementById('demo-vol');
         const demoQueueBtn = document.getElementById('demo-queue-btn');
-        const demoQueueModal = document.getElementById('demo-queue-modal');
         const demoQueueClose = document.getElementById('demo-queue-close');
 
-        // Переключатель вкл/выкл
-        demoToggle.addEventListener('click', () => {
-            demoToggle.classList.toggle('active');
-            const isActive = demoToggle.classList.contains('active');
-            
-            if (isActive) {
-                demoStatus.className = 'demo-status active';
-                demoStatus.innerText = isRussian ? 'Смотрю 3/12 | Mute' : 'Watching 3/12 | Mute';
-            } else {
+        // Функция обновления статуса
+        function updateDemoStatus() {
+            if (!demoToggle.classList.contains('active')) {
                 demoStatus.className = 'demo-status';
                 demoStatus.innerText = isRussian ? 'Выключено' : 'Disabled';
-                demoQueueModal.classList.remove('visible'); // Закрываем очередь при выключении
+                return;
+            }
+            const val = demoVol.value;
+            const volText = val == 0 ? 'Mute' : `${val}%`;
+            demoStatus.className = 'demo-status active';
+            demoStatus.innerText = isRussian ? `Смотрю 3/12 | ${volText}` : `Watching 3/12 | ${volText}`;
+        }
+
+        // Тумблер вкл/выкл
+        demoToggle.addEventListener('click', () => {
+            demoToggle.classList.toggle('active');
+            updateDemoStatus();
+            if (!demoToggle.classList.contains('active')) {
+                demoPanel.classList.remove('expanded'); // Закрываем панель при выключении
+                demoQueueBtn.classList.remove('active-icon');
             }
         });
 
         // Ползунок громкости
         demoVol.addEventListener('input', (e) => {
-            const val = e.target.value;
-            e.target.style.backgroundSize = `${val}% 100%`;
-            if (demoToggle.classList.contains('active')) {
-                const volText = val == 0 ? 'Mute' : `${val}%`;
-                demoStatus.innerText = isRussian ? `Смотрю 3/12 | ${volText}` : `Watching 3/12 | ${volText}`;
-            }
+            e.target.style.backgroundSize = `${e.target.value}% 100%`;
+            updateDemoStatus();
         });
 
-        // Открытие/закрытие очереди
+        // Открытие/закрытие выдвижной панели
         demoQueueBtn.addEventListener('click', () => {
             if (demoToggle.classList.contains('active')) {
-                demoQueueModal.classList.toggle('visible');
+                demoPanel.classList.toggle('expanded');
+                demoQueueBtn.classList.toggle('active-icon');
             }
         });
 
+        // Закрытие по крестику
         demoQueueClose.addEventListener('click', (e) => {
             e.stopPropagation();
-            demoQueueModal.classList.remove('visible');
-        });
-
-        // Закрытие по клику вне окна
-        document.addEventListener('click', (e) => {
-            if (!demoQueueModal.contains(e.target) && !demoQueueBtn.contains(e.target)) {
-                demoQueueModal.classList.remove('visible');
-            }
+            demoPanel.classList.remove('expanded');
+            demoQueueBtn.classList.remove('active-icon');
         });
     </script>
 </body>
