@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.0
+// @version      3.1
 // @description  Автозапуск, умная очередь, фикс паузы, поиск серий по ссылкам и API heartbeat
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -19,6 +19,34 @@
     if (window.top !== window.self) return; 
     if (!window.location.href.includes('/watch')) return; 
 
+    // --- ЛОКАЛИЗАЦИЯ / LOCALIZATION ---
+    const isRussian = navigator.language.toLowerCase().startsWith('ru');
+    const lang = {
+        ru: {
+            waiting: 'Ожидание...', watching: 'Смотрю', muted: 'Без звука', queue: 'Очередь',
+            add: 'Доб.', clear: 'Очистить всё', reset: 'Сбросить плагин', linkPlaceholder: 'Ссылка на /anime/... или /watch/...',
+            pause: 'Пауза', loading: 'Загрузка...', error: 'Ошибка (см. консоль)', queueEmpty: 'Очередь пуста',
+            clickSite: 'Кликни по сайту!', endSeason: 'Конец сезона/очереди', nextEp: 'Включаю', transition: 'Переход',
+            resume: 'Продолжаю', pressPlay: 'Жму Play...', kickVideo: 'Пинаю видео...', repeatPlay: 'Повторный Play...',
+            buffering: 'Буферизация, пихаю!', waitingStart: 'Ожидание старта...', total: 'Всего', episode: 'Серия',
+            startedClick: 'Запущено кликом!', invalidLink: 'Некорректная ссылка!', errorLoading: 'Ошибка загрузки',
+            resetConfirm: 'Сбросить все настройки плагина?', clearConfirm: 'Очистить всю очередь?',
+            animeId: 'Аниме (ID:', linkText: 'Ссылка'
+        },
+        en: {
+            waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
+            add: 'Add', clear: 'Clear all', reset: 'Reset plugin', linkPlaceholder: 'Link to /anime/... or /watch/...',
+            pause: 'Paused', loading: 'Loading...', error: 'Error (check console)', queueEmpty: 'Queue is empty',
+            clickSite: 'Click on the site!', endSeason: 'End of season/queue', nextEp: 'Playing', transition: 'Transition to',
+            resume: 'Resuming', pressPlay: 'Pressing Play...', kickVideo: 'Kicking video...', repeatPlay: 'Repeat Play...',
+            buffering: 'Buffering, kicking!', waitingStart: 'Waiting for start...', total: 'Total', episode: 'Episode',
+            startedClick: 'Started by click!', invalidLink: 'Invalid link!', errorLoading: 'Loading error',
+            resetConfirm: 'Reset all plugin settings?', clearConfirm: 'Clear the entire queue?',
+            animeId: 'Anime (ID:', linkText: 'Link'
+        }
+    };
+    const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
+
     const STORAGE_KEY = 'senku_autonext_enabled';
     const VOLUME_KEY = 'senku_autonext_volume';
     const QUEUE_KEY = 'senku_autonext_queue';
@@ -30,9 +58,9 @@
     let hasStartedCurrentVideo = false; 
 
     function logError(context, error) {
-        console.error(`\n🛑🛑🛑 [SENKU SKIP ERROR] 🛑🛑🛑\nКонтекст: ${context}\nОшибка: ${error.message || error}\nСтек:`, error.stack || 'Нет стека');
+        console.error(`\n🛑🛑🛑 [SENKU SKIP ERROR] 🛑🛑🛑\nContext: ${context}\nError: ${error.message || error}\nStack:`, error.stack || 'No stack');
         if (statusText) {
-            statusText.innerText = '❌ Ошибка (см. консоль)';
+            statusText.innerText = `❌ ${t('error')}`;
             statusText.className = 'error';
         }
     }
@@ -46,7 +74,7 @@
     let queue = [];
     try {
         const saved = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-        queue = saved.map(item => typeof item === 'string' ? { url: item, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' } : item);
+        queue = saved.map(item => typeof item === 'string' ? { url: item, title: t('loading'), image: '', startEp: 1, totalEps: '?' } : item);
     } catch(e) {}
 
     // --- 1. СТИЛИ ---
@@ -163,7 +191,7 @@
 
     const statusText = document.createElement('span');
     statusText.id = 'senku-status-text';
-    statusText.innerText = 'Ожидание...';
+    statusText.innerText = t('waiting');
 
     const divider = document.createElement('div');
     divider.className = 'senku-divider';
@@ -207,7 +235,7 @@
     iconQueue.setAttribute('class', 'senku-queue-icon');
     iconQueue.setAttribute('viewBox', '0 0 24 24');
     iconQueue.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>';
-    iconQueue.title = "Очередь воспроизведения";
+    iconQueue.title = t('queue');
     
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'senku-toggle';
@@ -216,10 +244,10 @@
         const isEnabled = localStorage.getItem(STORAGE_KEY) !== 'false';
         if (isEnabled) {
             toggleBtn.classList.add('active');
-            if (statusText.innerText === 'Выключено') statusText.innerText = 'Ожидание...';
+            if (statusText.innerText === t('muted')) statusText.innerText = t('waiting');
         } else {
             toggleBtn.classList.remove('active');
-            statusText.innerText = 'Выключено';
+            statusText.innerText = t('muted');
             statusText.className = '';
         }
     }
@@ -243,15 +271,15 @@
     const queueModal = document.createElement('div');
     queueModal.id = 'senku-queue-modal';
     queueModal.innerHTML = `
-        <div class="senku-queue-header"><span>Очередь</span><span class="senku-queue-close">×</span></div>
+        <div class="senku-queue-header"><span>${t('queue')}</span><span class="senku-queue-close">×</span></div>
         <div class="senku-queue-input-wrap">
-            <input type="text" id="senku-queue-input" placeholder="Ссылка на /anime/... или /watch/...">
-            <button class="senku-btn" id="senku-queue-add">Доб.</button>
+            <input type="text" id="senku-queue-input" placeholder="${t('linkPlaceholder')}">
+            <button class="senku-btn" id="senku-queue-add">${t('add')}</button>
         </div>
         <div id="senku-queue-list"></div>
         <div style="display:flex; justify-content:space-between; margin-top: 10px;">
-             <button class="senku-btn secondary" id="senku-queue-reset" style="color:#ff3b47;">Сбросить плагин</button>
-             <button class="senku-btn secondary" id="senku-queue-clear">Очистить всё</button>
+             <button class="senku-btn secondary" id="senku-queue-reset" style="color:#ff3b47;">${t('reset')}</button>
+             <button class="senku-btn secondary" id="senku-queue-clear">${t('clear')}</button>
         </div>
     `;
 
@@ -269,7 +297,7 @@
 
     // --- 4. ПАРСЕР НАЗВАНИЙ И СЕРИЙ ---
     async function fetchAnimeInfo(originalUrl) {
-        let title = 'Загрузка...';
+        let title = t('loading');
         let image = '';
         let id = '';
         let startEp = 1;
@@ -309,11 +337,11 @@
                 if (ogImage) image = ogImage.getAttribute('content') || image;
             } catch (e) {
                 console.warn(`[SENKU SKIP] Failed to parse HTML for ID ${id}`, e);
-                title = `Аниме (ID: ${id})`;
+                title = `${t('animeId')} ${id})`;
             }
         } else {
             const parts = originalUrl.split('/').filter(Boolean);
-            title = parts[parts.length - 1].split('?')[0] || 'Ссылка';
+            title = parts[parts.length - 1].split('?')[0] || t('linkText');
         }
 
         return { title, image, url: finalUrl, startEp, totalEps };
@@ -322,7 +350,7 @@
     function renderQueue() {
         queueList.innerHTML = '';
         if (queue.length === 0) { 
-            queueList.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">Очередь пуста</div>'; 
+            queueList.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">${t('queueEmpty')}</div>`; 
             return; 
         }
         
@@ -330,7 +358,7 @@
             const el = document.createElement('div');
             el.className = 'senku-queue-item';
             
-            const epText = `Серия ${item.startEp || 1}` + (item.totalEps && item.totalEps !== '?' ? ` (Всего: ${item.totalEps})` : '');
+            const epText = `${t('episode')} ${item.startEp || 1}` + (item.totalEps && item.totalEps !== '?' ? ` (${t('total')}: ${item.totalEps})` : '');
 
             el.innerHTML = `
                 <img class="senku-queue-img" src="${item.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}" alt="poster">
@@ -365,7 +393,7 @@
         try {
             new URL(rawUrl); 
             queueInput.value = '';
-            const newItem = { url: rawUrl, title: 'Загрузка...', image: '', startEp: 1, totalEps: '?' };
+            const newItem = { url: rawUrl, title: t('loading'), image: '', startEp: 1, totalEps: '?' };
             queue.push(newItem); 
             saveQueue();
             
@@ -375,18 +403,18 @@
                     queue[idx] = info;
                     saveQueue();
                 }
-            }).catch(() => { newItem.title = 'Ошибка загрузки'; saveQueue(); });
-        } catch (e) { alert('Некорректная ссылка!'); }
+            }).catch(() => { newItem.title = t('errorLoading'); saveQueue(); });
+        } catch (e) { alert(t('invalidLink')); }
     });
 
     const resetBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-reset'));
     resetBtn.addEventListener('click', () => {
-        if (confirm('Сбросить все настройки плагина?')) { localStorage.clear(); location.reload(); }
+        if (confirm(t('resetConfirm'))) { localStorage.clear(); location.reload(); }
     });
 
     const clearBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-clear'));
     clearBtn.addEventListener('click', () => {
-        if (confirm('Очистить всю очередь?')) { queue = []; saveQueue(); }
+        if (confirm(t('clearConfirm'))) { queue = []; saveQueue(); }
     });
 
     renderQueue();
@@ -407,11 +435,6 @@
     });
 
     // --- 6. ФУНКЦИИ ИЗ ПУЛЛ-РЕКВЕСТА RA9GE ---
-    
-    /**
-     * @param {string} href
-     * @returns {{id: string, ep: number}|null}
-     */
     function parseWatchHref(href) {
         try {
             const u = new URL(href, window.location.origin);
@@ -420,15 +443,9 @@
             const ep = path[2] || u.searchParams.get('episode');
             if (!ep) return null;
             return { id: path[1], ep: parseInt(ep, 10) };
-        } catch (e) {
-            return null;
-        }
+        } catch (e) { return null; }
     }
 
-    /**
-     * @param {HTMLIFrameElement} iframe
-     * @returns {number}
-     */
     function getCurrentEpisode(iframe) {
         const fromIframe = iframe.src.match(/[?&]episode=(\d+)/) || iframe.src.match(/[?&]ep=(\d+)/);
         if (fromIframe) return parseInt(fromIframe[1], 10);
@@ -436,10 +453,6 @@
         return fromPage ? fromPage.ep : 1;
     }
 
-    /**
-     * @param {number} ep
-     * @returns {HTMLAnchorElement|null}
-     */
     function findEpisodeLink(ep) {
         const current = parseWatchHref(window.location.href);
         const links = Array.from(document.querySelectorAll('a[href*="/watch"]'));
@@ -452,7 +465,6 @@
         return null;
     }
 
-    /** @returns {number|string} */
     function getTotalEpisodes() {
         const heads = Array.from(document.querySelectorAll('h2, h3'));
         for (const h of heads) {
@@ -467,10 +479,6 @@
         return nums.size > 0 ? nums.size : '?';
     }
 
-    /**
-     * @param {HTMLAnchorElement} link
-     * @param {number} fromEp
-     */
     function openEpisode(link, fromEp) {
         const target = link.href;
         clickElement(link);
@@ -581,7 +589,7 @@
             const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
             if (video && video.paused) { 
                 video.play().catch(() => {}); 
-                updateStatus('▶️ Запущено кликом!', 'active'); 
+                updateStatus(`▶️ ${t('startedClick')}`, 'active'); 
             }
         } catch(e) {}
     }, { capture: true });
@@ -625,7 +633,7 @@
             }
 
             const totalEps = getTotalEpisodes();
-            const volText = savedVolume === 0 ? 'Mute' : `${Math.round(savedVolume * 100)}%`;
+            const volText = savedVolume === 0 ? t('muted') : `${Math.round(savedVolume * 100)}%`;
 
             if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5)) {
                 if (isProcessing) return;
@@ -634,26 +642,25 @@
                 const nextLink = findEpisodeLink(currentEp + 1);
                 
                 if (nextLink) {
-                    updateStatus(`Включаю ${currentEp + 1}...`, 'active');
+                    updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
                     openEpisode(nextLink, currentEp);
                 } else {
-                    // Fallback: если по ссылкам не нашли, пробуем старый метод через "Сейчас смотришь"
                     const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
                     const card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
                     const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
 
                     if (nextCard) {
-                        updateStatus(`Включаю ${currentEp + 1}...`, 'active');
+                        updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
                         clickElement(nextCard);
                     } else if (queue.length > 0) {
                         const nextItem = queue.shift();
                         if (nextItem) {
                             saveQueue();
-                            updateStatus(`Переход: ${nextItem.title}`, 'active');
+                            updateStatus(`${t('transition')}: ${nextItem.title}`, 'active');
                             setTimeout(() => { window.location.href = nextItem.url; }, 1500);
                         }
                     } else {
-                        updateStatus(`Конец сезона/очереди`, 'error');
+                        updateStatus(t('endSeason'), 'error');
                     }
                 }
                 setTimeout(() => { isProcessing = false; }, 5000); 
@@ -662,7 +669,7 @@
 
             if (video.paused && !video.ended) {
                 if (hasStartedCurrentVideo) {
-                    updateStatus(`Пауза (${currentEp}/${totalEps})`, 'normal');
+                    updateStatus(`${t('pause')} (${currentEp}/${totalEps})`, 'normal');
                     pauseActionState = 0; 
                     pauseActionTime = 0;
                 } else {
@@ -672,10 +679,10 @@
                         
                         if (isResumeVisible && resumeBtn) {
                             const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
-                            updateStatus(`Продолжаю: ${timeMatch ? timeMatch[0] : ''}`, 'active');
+                            updateStatus(`${t('resume')}: ${timeMatch ? timeMatch[0] : ''}`, 'active');
                             clickElement(resumeBtn);
                         } else {
-                            updateStatus(`Ожидание старта...`, 'error');
+                            updateStatus(t('waitingStart'), 'error');
                         }
                         pauseActionState = 1;
                         pauseActionTime = Date.now();
@@ -683,38 +690,38 @@
                     else if (pauseActionState === 1) {
                         if (Date.now() - pauseActionTime > 3000) {
                             const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
-                            updateStatus(`Жму Play...`, 'active');
+                            updateStatus(t('pressPlay'), 'active');
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
                             
                             video.play().catch(() => {
                                 needsUserClickToPlay = true;
-                                updateStatus(`Кликни по сайту!`, 'error');
+                                updateStatus(t('clickSite'), 'error');
                             });
                             pauseActionState = 2;
                             pauseActionTime = Date.now();
                         } else {
-                            updateStatus(`Загрузка...`, 'normal');
+                            updateStatus(t('loading'), 'normal');
                         }
                     }
                     else if (pauseActionState === 2) {
                         if (Date.now() - pauseActionTime > 3000) {
-                            updateStatus(`Пинаю видео...`, 'active');
+                            updateStatus(t('kickVideo'), 'active');
                             clickElement(video);
                             video.play().catch(() => {
                                 needsUserClickToPlay = true;
-                                updateStatus(`Кликни по сайту!`, 'error');
+                                updateStatus(t('clickSite'), 'error');
                             });
                             pauseActionState = 3;
                             pauseActionTime = Date.now();
                         } else {
-                            updateStatus(`Загрузка...`, 'normal');
+                            updateStatus(t('loading'), 'normal');
                         }
                     }
                     else if (pauseActionState === 3) {
                         const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
                         if (wait <= 0) {
-                            updateStatus(`Повторный Play...`, 'active');
+                            updateStatus(t('repeatPlay'), 'active');
                             const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
@@ -722,7 +729,7 @@
                             pauseActionState = 2; 
                             pauseActionTime = Date.now();
                         } else {
-                            updateStatus(`Жду ${wait}с...`, 'error');
+                            updateStatus(`${t('waiting')} ${wait}c...`, 'error');
                         }
                     }
                 }
@@ -731,13 +738,13 @@
                 pauseActionTime = 0; 
                 needsUserClickToPlay = false; 
                 
-                if (video.currentTime > 0) updateStatus(`Смотрю ${currentEp}/${totalEps} | ${volText}`, 'normal');
+                if (video.currentTime > 0) updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
                 
                 if (Math.abs(video.currentTime - lastTime) < 0.1) {
                     if (pauseActionTime === 0) pauseActionTime = Date.now(); 
                     const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
                     if (secPassed > 20) {
-                        updateStatus(`Буферизация, пихаю!`, 'error');
+                        updateStatus(t('buffering'), 'error');
                         const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
                         if (playBtn) clickElement(playBtn);
                         else clickElement(video);
@@ -751,7 +758,7 @@
             lastTime = video.currentTime;
 
         } catch (e) {
-            logError('Основной цикл автоматизации', /** @type {Error} */(e));
+            logError('Main automation loop', /** @type {Error} */(e));
         }
     }, 1000); 
 })();
