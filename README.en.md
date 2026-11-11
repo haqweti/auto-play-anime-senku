@@ -9,7 +9,11 @@
     <img src="https://img.shields.io/badge/Telegram-Channel-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Channel">
   </a>
   &nbsp;&nbsp;
-  <!-- Новый бейдж Discord -->
+  <!-- Новый бейдж TG Чата -->
+  <a href="https://t.me/senkuchater" target="_blank">
+    <img src="https://img.shields.io/badge/Telegram-Chat-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Chat">
+  </a>
+  &nbsp;&nbsp;
   <a href="https://discord.gg/sKkrJZJTX" target="_blank">
     <img src="https://img.shields.io/badge/Discord-Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Server">
   </a>
