@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <!-- Подтверждение прав Google Search Console -->
-    <meta name="google-site-verification" content="5RvtnP1JxCOfxShDFWjDcgSLPhdzL3Mt3xRg5zBwVz8" />
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Senku Ultimate Autoplay - Улучшение плеера</title>
@@ -21,72 +18,269 @@
     <meta name="twitter:description" content="Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.">
     <meta name="twitter:image" content="https://haqweti.github.io/auto-play-anime-senku/banner.png">
 
-    <!-- Шрифты и стили -->
     <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --accent: #ff3b47;
+            --bg: #0a0a0a;
+            --card-bg: rgba(255,255,255,0.03);
+            --card-border: rgba(255,255,255,0.08);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        
         body { 
             font-family: 'Unbounded', sans-serif; 
-            background: #0a0a0a; 
+            background: var(--bg); 
             color: #fff; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
             min-height: 100vh; 
             padding: 40px 20px;
+            overflow-x: hidden;
+            /* Анимированный фон */
             background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.15) 0%, transparent 50%);
+            background-size: 100% 100%;
+            animation: bgPulse 8s ease-in-out infinite alternate;
         }
-        .container { max-width: 900px; width: 100%; text-align: center; }
+
+        @keyframes bgPulse {
+            0% { background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.1) 0%, transparent 45%); }
+            100% { background-image: radial-gradient(circle at 50% 0%, rgba(255, 59, 71, 0.2) 0%, transparent 55%); }
+        }
+
+        /* Плавное появление контейнеров */
+        .fade-in-up {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .container { max-width: 900px; width: 100%; text-align: center; z-index: 1; }
         
-        .banner { width: 100%; border-radius: 16px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        
+        .banner-wrapper {
+            perspective: 1000px; /* Для 3D эффекта */
+            margin-bottom: 30px;
+            width: 100%;
+        }
+
+        .banner { 
+            width: 100%; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            transition: transform 0.1s ease-out;
+            will-change: transform;
+        }
+
         h1 { color: #fff; font-size: 36px; margin-bottom: 10px; }
-        h1 span { color: #ff3b47; }
+        h1 span { color: var(--accent); }
         p.desc { color: rgba(255,255,255,0.7); font-size: 16px; line-height: 1.5; margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto; }
         
         .buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 50px; }
+        
         a.btn { 
             display: inline-block; padding: 15px 30px; border-radius: 12px; 
             text-decoration: none; font-weight: 700; font-size: 15px; 
-            transition: transform 0.2s, box-shadow 0.2s; 
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+            position: relative;
+            overflow: hidden;
         }
         a.btn:hover { transform: translateY(-2px); }
-        .btn-primary { background: #ff3b47; color: #fff; box-shadow: 0 8px 24px rgba(255, 59, 71, 0.4); }
-        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
         
+        /* Пульсирующая главная кнопка */
+        .btn-primary { 
+            background: var(--accent); 
+            color: #fff; 
+            animation: pulseGlow 2s infinite;
+        }
+        .btn-primary:hover {
+            animation: none;
+            box-shadow: 0 8px 30px rgba(255, 59, 71, 0.6);
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(255, 59, 71, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 59, 71, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 59, 71, 0); }
+        }
+
+        /* Эффект блика на кнопке при наведении */
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .btn:hover::before { left: 100%; }
+
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+
         .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; text-align: left; }
-        .feature-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 20px; border-radius: 16px; }
-        .feature-card h3 { color: #ff3b47; font-size: 16px; margin-bottom: 8px; }
+        
+        /* 3D-карточки с бликом */
+        .feature-card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--card-border); 
+            padding: 20px; 
+            border-radius: 16px; 
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(255, 59, 71, 0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .feature-card h3 { color: var(--accent); font-size: 16px; margin-bottom: 8px; }
         .feature-card p { color: rgba(255,255,255,0.6); font-size: 13px; line-height: 1.4; }
+
+        /* Слой блика для карточек */
+        .glare {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .feature-card:hover .glare { opacity: 1; }
+
+        /* Стили для футера */
+        footer {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid var(--card-border);
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.4);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        footer .author { color: #fff; font-weight: 600; }
+        footer .copyright { font-size: 11px; }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <img src="banner.png" alt="Senku Ultimate Autoplay" class="banner">
         
-        <h1>Senku <span>Ultimate Autoplay</span></h1>
-        <p class="desc">Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.</p>
+        <!-- Баннер с 3D-эффектом -->
+        <div class="banner-wrapper fade-in-up" style="animation-delay: 0.1s;">
+            <img src="banner.png" alt="Senku Ultimate Autoplay" class="banner" id="tiltBanner">
+        </div>
         
-        <div class="buttons">
-            <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/main/Senku%20Ultimate%20Autoplay.user.js" class="btn btn-primary">Установить скрипт</a>
-            <a href="https://github.com/haqweti/auto-play-anime-senku" class="btn btn-secondary">Посмотреть на GitHub</a>
-            <a href="https://t.me/Senkuone" class="btn btn-secondary">Telegram Канал</a>
+        <h1 class="fade-in-up" style="animation-delay: 0.2s;">Senku <span>Ultimate Autoplay</span></h1>
+        <p class="desc fade-in-up" style="animation-delay: 0.3s;">Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.</p>
+        
+        <div class="buttons fade-in-up" style="animation-delay: 0.4s;">
+            <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/main/Senku%20Ultimate%20Autoplay.user.js" class="btn btn-primary" id="btn-install">Установить скрипт</a>
+            <a href="https://github.com/haqweti/auto-play-anime-senku" class="btn btn-secondary" id="btn-github">Посмотреть на GitHub</a>
+            <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" id="btn-releases">Обновления</a>
+            <a href="https://t.me/Senkuone" class="btn btn-secondary" id="btn-tg">Telegram Канал</a>
         </div>
 
-        <div class="features">
-            <div class="feature-card">
-                <h3>Автопереход</h3>
-                <p>Скрипт сам находит и включает следующую серию. Зависания плеера обходятся автоматически.</p>
+        <div class="features fade-in-up" style="animation-delay: 0.5s;" id="features-container">
+            <div class="feature-card" data-tilt>
+                <div class="glare"></div>
+                <h3 id="f1-title">Автопереход</h3>
+                <p id="f1-text">Скрипт сам находит и включает следующую серию. Зависания плеера обходятся автоматически.</p>
             </div>
-            <div class="feature-card">
-                <h3>Умный плейлист</h3>
-                <p>Выдвижная панель для создания очереди из сезонов или других тайтлов с постерами.</p>
+            <div class="feature-card" data-tilt>
+                <div class="glare"></div>
+                <h3 id="f2-title">Умный плейлист</h3>
+                <p id="f2-text">Выдвижная панель для создания очереди из сезонов или других тайтлов с постерами.</p>
             </div>
-            <div class="feature-card">
-                <h3>Фикс паузы и звука</h3>
-                <p>Защита от сброса времени и полная синхронизация громкости с плеером.</p>
+            <div class="feature-card" data-tilt>
+                <div class="glare"></div>
+                <h3 id="f3-title">Фикс паузы и звука</h3>
+                <p id="f3-text">Защита от сброса времени и полная синхронизация громкости с плеером.</p>
             </div>
         </div>
+
+        <footer class="fade-in-up" style="animation-delay: 0.6s;">
+            <div class="author">Автор: mikuro</div>
+            <div class="copyright">Все права защищены © 2026</div>
+        </footer>
+
     </div>
+
+    <script>
+        // --- 1. Логика перевода ---
+        const isRussian = navigator.language.toLowerCase().startsWith('ru');
+        
+        if (!isRussian) {
+            document.getElementById('desc-text').innerText = 'Userscript for senku.one: auto-play next episodes, smart playlist, volume sync, and extended player functionality.';
+            document.getElementById('btn-install').innerText = 'Install Script';
+            document.getElementById('btn-github').innerText = 'View on GitHub';
+            document.getElementById('btn-releases').innerText = 'Releases';
+            document.getElementById('btn-tg').innerText = 'Telegram Channel';
+            
+            document.getElementById('f1-title').innerText = 'Auto-next';
+            document.getElementById('f1-text').innerText = 'Automatically finds and plays the next episode. Player freezes are bypassed automatically.';
+            
+            document.getElementById('f2-title').innerText = 'Smart Playlist';
+            document.getElementById('f2-text').innerText = 'Slide-out panel to create a queue of seasons or other titles with posters.';
+            
+            document.getElementById('f3-title').innerText = 'Pause & Volume Fix';
+            document.getElementById('f3-text').innerText = 'Protection against time resets and full volume synchronization with the player.';
+        }
+
+        // --- 2. 3D-наклон для баннера и карточек ---
+        
+        function initTilt(element) {
+            if (!element) return;
+
+            const xTransform = 10; // Максимальный угол наклона по X
+            const yTransform = 10; // Максимальный угол наклона по Y
+
+            element.addEventListener('mousemove', (e) => {
+                const rect = element.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+
+                const rotateX = ((y - centerY) / centerY) * -xTransform;
+                const rotateY = ((x - centerX) / centerX) * yTransform;
+
+                element.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+                
+                // Для карточек с бликом
+                const glare = element.querySelector('.glare');
+                if (glare) {
+                    glare.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(255,255,255,0.2) 0%, transparent 60%)`;
+                }
+            });
+
+            element.addEventListener('mouseleave', () => {
+                element.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+                const glare = element.querySelector('.glare');
+                if (glare) glare.style.background = 'transparent';
+            });
+        }
+
+        // Применяем 3D-эффект к баннеру и всем карточкам
+        const banner = document.getElementById('tiltBanner');
+        initTilt(banner);
+
+        const cards = document.querySelectorAll('[data-tilt]');
+        cards.forEach(card => initTilt(card));
+
+    </script>
 </body>
 </html>
