@@ -1,10 +1,16 @@
 <p align="center">
-  <a href="https://deepseek.com"><img src="https://img.shields.io/badge/Powered%20by-DeepSeek-0052FF?style=for-the-badge&logo=openai&logoColor=white" alt="Powered by DeepSeek"></a>
-  <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js"><img src="https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white" alt="Установить скрипт"></a>
+  <a href="https://senku.one" target="_blank">
+    <img src="https://img.shields.io/badge/Сайт-senku.one-1a1a1a?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Сайт Senku">
+  </a>
+  <a href="https://t.me/Senkuone" target="_blank">
+    <img src="https://img.shields.io/badge/Telegram-Канал-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Канал">
+  </a>
+  <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js">
+    <img src="https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white" alt="Установить скрипт">
+  </a>
 </p>
 
 <br>
-
 
 <h1 align="center">Senku Ultimate Autoplay</h1>
 
@@ -12,7 +18,6 @@
   <b>Новый уровень просмотра аниме на Senku (<a href="https://senku.one" target="_blank">senku.one</a>).</b><br>
   Скрипт, который расширяет функционал стандартного плеера: добавляет <b>автопереход серий</b>, <b>умный плейлист</b> и делает управление максимально комфортным.
 </p>
-
 <p align="center">
   <img width="100%" alt="Senku Ultimate Autoplay Banner" src="https://github.com/user-attachments/assets/80bff55d-60b4-46ce-9838-b300876ac1a6" style="border-radius: 16px;" />
 </p>
