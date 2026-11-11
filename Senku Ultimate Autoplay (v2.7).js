@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Senku Ultimate Autoplay (v27.0 - JSDoc Type-Safe)
+// @name         Senku Ultimate Autoplay (v27.1 - JSDoc Type-Safe)
 // @namespace    http://tampermonkey.net/
-// @version      27.0
+// @version      27.1
 // @description  Автозапуск, умная очередь, выдвижная панель (с типами)
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -519,6 +519,78 @@
         return true;
     }
 
+    /**
+     * @param {string} href
+     * @returns {{id: string, ep: number}|null}
+     */
+    function parseWatchHref(href) {
+        try {
+            const u = new URL(href, window.location.origin);
+            const path = u.pathname.match(/\/watch\/(\d+)(?:\/(\d+))?/);
+            if (!path) return null;
+            const ep = path[2] || u.searchParams.get('episode');
+            if (!ep) return null;
+            return { id: path[1], ep: parseInt(ep, 10) };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * @param {HTMLIFrameElement} iframe
+     * @returns {number}
+     */
+    function getCurrentEpisode(iframe) {
+        const fromIframe = iframe.src.match(/[?&]episode=(\d+)/) || iframe.src.match(/[?&]ep=(\d+)/);
+        if (fromIframe) return parseInt(fromIframe[1], 10);
+        const fromPage = parseWatchHref(window.location.href);
+        return fromPage ? fromPage.ep : 1;
+    }
+
+    /**
+     * @param {number} ep
+     * @returns {HTMLAnchorElement|null}
+     */
+    function findEpisodeLink(ep) {
+        const current = parseWatchHref(window.location.href);
+        const links = Array.from(document.querySelectorAll('a[href*="/watch"]'));
+        for (const a of links) {
+            const info = parseWatchHref(/** @type {HTMLAnchorElement} */ (a).href);
+            if (!info || info.ep !== ep) continue;
+            if (current && info.id !== current.id) continue;
+            return /** @type {HTMLAnchorElement} */ (a);
+        }
+        return null;
+    }
+
+    /** @returns {number|string} */
+    function getTotalEpisodes() {
+        const heads = Array.from(document.querySelectorAll('h2, h3'));
+        for (const h of heads) {
+            const m = h.textContent?.match(/Серии\s*(\d+)/i);
+            if (m) return parseInt(m[1], 10);
+        }
+        const nums = new Set();
+        document.querySelectorAll('a[href*="/watch"]').forEach(a => {
+            const info = parseWatchHref(/** @type {HTMLAnchorElement} */ (a).href);
+            if (info) nums.add(info.ep);
+        });
+        return nums.size > 0 ? nums.size : '?';
+    }
+
+    /**
+     * @param {HTMLAnchorElement} link
+     * @param {number} fromEp
+     */
+    function openEpisode(link, fromEp) {
+        const target = link.href;
+        clickElement(link);
+        setTimeout(() => {
+            const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
+            if (!iframe || getCurrentEpisode(iframe) === fromEp) window.location.href = target;
+        }, 3000);
+    }
+
     document.addEventListener('click', () => {
         userInteracted = true;
         if (!needsUserClickToPlay) return;
@@ -563,8 +635,7 @@
             const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
             if (!iframeDoc) return;
 
-            const epMatch = iframe.src.match(/episode=(\d+)/) || iframe.src.match(/ep=(\d+)/);
-            const currentEp = epMatch ? parseInt(epMatch[1], 10) : 1;
+            const currentEp = getCurrentEpisode(iframe);
 
             const video = /** @type {HTMLVideoElement|null} */ (iframeDoc.querySelector('video'));
             if (!video) return;
@@ -574,20 +645,24 @@
                 needsUserClickToPlay = false;
             }
 
-            const sideMenuLinks = Array.from(document.querySelectorAll('a')).filter(a => a.href.includes('/watch') && /Серия\s*\d+/i.test(a.textContent));
-            const totalEps = sideMenuLinks.length > 0 ? sideMenuLinks.length : '?';
+            const totalEps = getTotalEpisodes();
             const volText = savedVolume === 0 ? 'Mute' : `${Math.round(savedVolume * 100)}%`;
 
             if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5)) {
                 if (isProcessing) return;
                 isProcessing = true;
 
+                const nextLink = findEpisodeLink(currentEp + 1);
                 const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
-                let card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
+                const card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
+                const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
 
-                if (card && card.nextElementSibling) {
+                if (nextLink) {
                     updateStatus(`Включаю ${currentEp + 1}...`, 'active');
-                    clickElement(/** @type {HTMLElement} */(card.nextElementSibling));
+                    openEpisode(nextLink, currentEp);
+                } else if (nextCard) {
+                    updateStatus(`Включаю ${currentEp + 1}...`, 'active');
+                    clickElement(nextCard);
                 } else {
                     if (queue.length > 0) {
                         const nextItem = queue.shift();
