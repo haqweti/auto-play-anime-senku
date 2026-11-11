@@ -20,10 +20,9 @@
   <b>Новый уровень просмотра аниме на Senku (<a href="https://senku.one" target="_blank">senku.one</a>).</b><br>
   Скрипт, который расширяет функционал стандартного плеера: добавляет <b>автопереход серий</b>, <b>умный плейлист</b> и делает управление максимально комфортным.
 </p>
+
 <p align="center">
-  <img width="1234" height="539" alt="{53BDB484-74BF-4F95-895E-A0AA3FC15A4C}" src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" />
-
-
+  <img width="100%" alt="Senku Ultimate Autoplay Banner" src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" style="border-radius: 16px;" />
 </p>
 
 > [!IMPORTANT]
@@ -127,6 +126,9 @@
 
 <br>
 
+<p align="center">
+  <i>Сделано с ❤️ для аниме-сообщества</i>
+</p>
 <p align="center">
   <i>Сделано с ❤️ для аниме-сообщества</i>
 </p>
