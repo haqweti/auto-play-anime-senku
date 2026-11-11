@@ -77,7 +77,7 @@
 Скрипт поддерживает автоматическое обновление. Вам не нужно каждый раз скачивать и переустанавливать файл вручную — все новые фиксы и функции прилетают сами.
 
 <p align="center">
-  <img width="100%" src="https://github.com/user-attachments/assets/76ad49f7-f192-437c-a12c-140922d3ca49" alt="Схема обновления скрипта" style="border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+  <img width="821" height="775" alt="{75866F76-FE9D-4340-830E-E27A1F54C13D}" src="https://github.com/user-attachments/assets/cc2f7603-3a2c-4981-bad1-21757c220044" />
 </p>
 
 > [!TIP]
