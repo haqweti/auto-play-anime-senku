@@ -1,3 +1,5 @@
+[![Powered by DeepSeek](https://img.shields.io/badge/Powered%20by-DeepSeek-0052FF?style=for-the-badge&logo=openai&logoColor=white)](https://deepseek.com)
+
 # auto-play-anime-senku
 
 Скрипт (UserScript) для сайта `senku.one`, автоматизирующий последовательный просмотр аниме. Добавляет панель управления рядом с плеером и позволяет непрерывно смотреть серии и сезоны с контролем уровня звука.
