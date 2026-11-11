@@ -1,3 +1,5 @@
+**🇷🇺 Русский** | [🇬🇧 English](README.en.md)
+
 <p align="center">
   <a href="https://senku.one" target="_blank">
     <img src="https://img.shields.io/badge/Сайт-senku.one-1a1a1a?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Сайт Senku">
@@ -128,3 +130,4 @@
 
 <p align="center">
   <i>Сделано с ❤️ для аниме-сообщества</i>
+</p>
