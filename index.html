@@ -184,13 +184,16 @@
         </div>
         
         <h1 class="fade-in-up" style="animation-delay: 0.2s;">Senku <span>Ultimate Autoplay</span></h1>
-        <p class="desc fade-in-up" style="animation-delay: 0.3s;">Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.</p>
+        <p class="desc fade-in-up" style="animation-delay: 0.3s;" id="desc-text">Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.</p>
         
         <div class="buttons fade-in-up" style="animation-delay: 0.4s;">
             <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/main/Senku%20Ultimate%20Autoplay.user.js" class="btn btn-primary" id="btn-install">Установить скрипт</a>
             <a href="https://github.com/haqweti/auto-play-anime-senku" class="btn btn-secondary" id="btn-github">Посмотреть на GitHub</a>
             <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" id="btn-releases">Обновления</a>
             <a href="https://t.me/Senkuone" class="btn btn-secondary" id="btn-tg">Telegram Канал</a>
+            <!-- НОВЫЕ КНОПКИ -->
+            <a href="https://t.me/senkuchater" class="btn btn-secondary" id="btn-tg-chat">Telegram Чат</a>
+            <a href="https://discord.gg/sKkrJZJTX" class="btn btn-secondary" id="btn-discord">Discord</a>
         </div>
 
         <div class="features fade-in-up" style="animation-delay: 0.5s;" id="features-container">
@@ -228,6 +231,9 @@
             document.getElementById('btn-github').innerText = 'View on GitHub';
             document.getElementById('btn-releases').innerText = 'Releases';
             document.getElementById('btn-tg').innerText = 'Telegram Channel';
+            // Перевод для новых кнопок
+            document.getElementById('btn-tg-chat').innerText = 'Telegram Chat';
+            document.getElementById('btn-discord').innerText = 'Discord';
             
             document.getElementById('f1-title').innerText = 'Auto-next';
             document.getElementById('f1-text').innerText = 'Automatically finds and plays the next episode. Player freezes are bypassed automatically.';
