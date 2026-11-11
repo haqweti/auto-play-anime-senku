@@ -55,7 +55,7 @@
 1. Установите Tampermonkey в ваш браузер.
 2. Нажмите на кнопку ниже, чтобы скачать файл скрипта:
 
-[![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://github.com/haqweti/auto-play-anime-senku/releases/download/v1.0.0/Senku.Ultimate.Autoplay.v2.7.js)
+[![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js)
 
 3. Перетащите скачанный файл `.js` в окно Tampermonkey (или откройте панель управления Tampermonkey, создайте новый скрипт и вставьте туда код).
 4. Рабочий скрипт должен гореть красным на сайте 
