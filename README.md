@@ -21,7 +21,9 @@
   Скрипт, который расширяет функционал стандартного плеера: добавляет <b>автопереход серий</b>, <b>умный плейлист</b> и делает управление максимально комфортным.
 </p>
 <p align="center">
-  <img width="100%" alt="Senku Ultimate Autoplay Banner" src="https://github.com/user-attachments/assets/80bff55d-60b4-46ce-9838-b300876ac1a6" style="border-radius: 16px;" />
+  <img width="1234" height="539" alt="{53BDB484-74BF-4F95-895E-A0AA3FC15A4C}" src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" />
+
+
 </p>
 
 > [!IMPORTANT]
