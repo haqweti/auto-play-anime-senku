@@ -1,5 +1,5 @@
 [![Powered by DeepSeek](https://img.shields.io/badge/Powered%20by-DeepSeek-0052FF?style=for-the-badge&logo=openai&logoColor=white)](https://deepseek.com)
-
+[![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js)
 # auto-play-anime-senku
 
 <img width="403" height="523" alt="{EF79DA07-7606-47D0-A3A7-94A87DAF59BC}" src="https://github.com/user-attachments/assets/4282850e-5a62-47b8-91f9-52f4bc288937" />
@@ -55,7 +55,7 @@
 1. Установите Tampermonkey в ваш браузер.
 2. Нажмите на кнопку ниже, чтобы скачать файл скрипта:
 
-[![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.js)
+[![Установить скрипт](https://img.shields.io/badge/Установить-Скрипт-brightgreen?style=for-the-badge&logo=javascript&logoColor=white)](https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/refs/heads/main/Senku%20Ultimate%20Autoplay.user.js)
 
 3. Перетащите скачанный файл `.js` в окно Tampermonkey (или откройте панель управления Tampermonkey, создайте новый скрипт и вставьте туда код).
 4. Рабочий скрипт должен гореть красным на сайте 
