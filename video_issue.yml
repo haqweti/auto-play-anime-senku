@@ -1,0 +1,38 @@
+name: Проблема с видео
+description: Серия не играет, нет нужной озвучки, не та серия, плохое качество
+title: "[Video]: "
+labels: ["video-issue"]
+body:
+  - type: input
+    id: anime-name
+    attributes:
+      label: Название аниме
+      placeholder: Например, Повар-боец Сома
+    validations:
+      required: true
+  - type: input
+    id: episode
+    attributes:
+      label: Номер серии и сезона
+      placeholder: Сезон 2, Серия 5
+    validations:
+      required: true
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Тип проблемы
+      options:
+        - Видео не грузится / черный экран
+        - Неправильная озвучка
+        - Загружается не та серия
+        - Плохое качество
+        - Другое
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Детали
+      description: Что именно не так? Приложите скриншот, если возможно.
+    validations:
+      required: true

@@ -1,0 +1,43 @@
+name: Сообщить об ошибке
+description: Скрипт не работает, ломает плеер или ведет себя неправильно
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашли время сообщить об ошибке! Пожалуйста, заполните форму ниже.
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание проблемы
+      description: Что именно пошло не так? (Например, не переключается серия, не работает ползунок звука, исчезла панель и т.д.)
+      placeholder: Опишите проблему как можно подробнее...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги для воспроизведения
+      description: Как нам повторить эту ошибку?
+      placeholder: |
+        1. Открыть аниме...
+        2. Нажать на...
+        3. Увидеть ошибку...
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Браузер и менеджер скриптов
+      description: В каком браузере и с каким расширением вы смотрите?
+      placeholder: Chrome + Tampermonkey / Firefox + OrangeMonkey
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Скриншоты или лог ошибки
+      description: Перетащите сюда картинки или скопируйте ошибки из консоли браузера (F12), если это поможет.
+    validations:
+      required: false
