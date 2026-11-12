@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.2.4
-// @description  Автозапуск, умная очередь, фикс паузы, адаптивный поиск плеера
+// @version      3.3.0
+// @description  Автозапуск, умная очередь, фикс паузы, контроль скорости и адаптивный поиск плеера
 // @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -32,7 +32,7 @@
             buffering: 'Буферизация, пихаю!', waitingStart: 'Ожидание старта...', total: 'Всего', episode: 'Серия',
             startedClick: 'Запущено кликом!', invalidLink: 'Некорректная ссылка!', errorLoading: 'Ошибка загрузки',
             resetConfirm: 'Сбросить все настройки плагина?', clearConfirm: 'Очистить всю очередь?',
-            animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...'
+            animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость'
         },
         en: {
             waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
@@ -43,7 +43,7 @@
             buffering: 'Buffering, kicking!', waitingStart: 'Waiting for start...', total: 'Total', episode: 'Episode',
             startedClick: 'Started by click!', invalidLink: 'Invalid link!', errorLoading: 'Loading error',
             resetConfirm: 'Reset all plugin settings?', clearConfirm: 'Clear the entire queue?',
-            animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...'
+            animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed'
         }
     };
     const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
@@ -52,6 +52,7 @@
     const VOLUME_KEY = 'senku_autonext_volume';
     const QUEUE_KEY = 'senku_autonext_queue';
     const PANEL_OPEN_KEY = 'senku_panel_open'; 
+    const SPEED_KEY = 'senku_autonext_speed'; // Новый ключ для скорости
     
     let needsUserClickToPlay = false; 
     let userInteracted = false;
@@ -71,6 +72,11 @@
     let savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) || '1.0');
     if (isNaN(savedVolume)) savedVolume = 1.0;
 
+    // --- ЛОГИКА СКОРОСТИ ---
+    const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.5, 0.75];
+    let savedSpeed = parseFloat(localStorage.getItem(SPEED_KEY) || '1');
+    if (!SPEEDS.includes(savedSpeed)) savedSpeed = 1;
+
     /** @type {Array<any>} */
     let queue = [];
     try {
@@ -78,7 +84,7 @@
         queue = saved.map(item => typeof item === 'string' ? { url: item, title: t('loading'), image: '', startEp: 1, totalEps: '?' } : item);
     } catch(e) {}
 
-    // --- 1. СТИЛИ (Обновленный дизайн под кастомный плеер) ---
+    // --- 1. СТИЛИ ---
     if (!document.getElementById('senku-font')) {
         const link = document.createElement('link');
         link.id = 'senku-font';
@@ -110,7 +116,7 @@
         #senku-autonext-panel.collapsed #senku-trigger-btn .senku-icon { transform: rotate(180deg); }
 
         #senku-panel-content { display: flex; align-items: center; gap: 12px; max-width: 0; opacity: 0; overflow: hidden; transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.4s; margin-right: 0; }
-        #senku-autonext-panel:not(.collapsed) #senku-panel-content { max-width: 500px; opacity: 1; margin-right: 8px; }
+        #senku-autonext-panel:not(.collapsed) #senku-panel-content { max-width: 600px; opacity: 1; margin-right: 8px; }
 
         #senku-status-text { color: rgba(255, 255, 255, 0.85) !important; font-size: 11px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; letter-spacing: 0.02em; transition: color 0.3s; white-space: nowrap; }
         #senku-status-text.error { color: #ff3b47 !important; }
@@ -131,6 +137,28 @@
         
         .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
         
+        /* НОВЫЙ БЛОК СКОРОСТИ */
+        .senku-speed-btn {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.85);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 4px;
+            flex-shrink: 0;
+            min-width: 38px;
+            text-align: center;
+        }
+        .senku-speed-btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
         .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
         .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
         
@@ -229,6 +257,30 @@
     volContainer.appendChild(volIcon);
     volContainer.appendChild(volSlider);
 
+    // --- НОВАЯ КНОПКА СКОРОСТИ ---
+    const speedBtn = document.createElement('button');
+    speedBtn.className = 'senku-speed-btn';
+    speedBtn.title = t('speed');
+    
+    function updateSpeedBtnText() {
+        speedBtn.innerText = savedSpeed === 1 ? '1x' : `${savedSpeed}x`;
+    }
+    updateSpeedBtnText();
+
+    speedBtn.addEventListener('click', () => {
+        let idx = SPEEDS.indexOf(savedSpeed);
+        if (idx === -1) idx = 0;
+        idx = (idx + 1) % SPEEDS.length;
+        savedSpeed = SPEEDS[idx];
+        localStorage.setItem(SPEED_KEY, String(savedSpeed));
+        updateSpeedBtnText();
+        
+        const player = findPlayer();
+        if (player && player.video) {
+            player.video.playbackRate = savedSpeed;
+        }
+    });
+
     const iconQueue = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     iconQueue.setAttribute('class', 'senku-queue-icon');
     iconQueue.setAttribute('viewBox', '0 0 24 24');
@@ -259,6 +311,7 @@
     contentWrap.appendChild(statusText); 
     contentWrap.appendChild(divider);
     contentWrap.appendChild(volContainer); 
+    contentWrap.appendChild(speedBtn); // Вставляем кнопку скорости
     contentWrap.appendChild(iconQueue); 
     contentWrap.appendChild(toggleBtn);
 
@@ -448,12 +501,8 @@
         } catch (e) { return null; }
     }
 
-    // ИЗМЕНЕНО: Более агрессивный поиск плеера
     function findPlayer() {
-        // 1. Пытаемся найти стандартные iframe Senku
         let frames = Array.from(document.querySelectorAll('iframe[src*="senku_plyr"], iframe[src*="/embed"]'));
-        
-        // 2. Если не нашли, ищем вообще любой iframe
         if (frames.length === 0) {
             frames = Array.from(document.querySelectorAll('iframe'));
         }
@@ -463,12 +512,9 @@
                 const doc = frame.contentDocument || frame.contentWindow?.document;
                 const video = doc ? doc.querySelector('video') : null;
                 if (doc && video) return { frame, doc, video };
-            } catch (e) {
-                // CORS error - probably cross origin. We can't access it.
-            }
+            } catch (e) {}
         }
 
-        // 3. Ищем видео прямо на странице (без iframe)
         const video = document.querySelector('video');
         if (video) return { frame: null, doc: document, video };
         
@@ -554,7 +600,6 @@
                     duration: Math.floor(video.duration)
                 })
             });
-            // Если 401 - мы просто игнорируем, чтобы не спамить
             if (res.status === 401) return; 
         } catch (e) {}
     }
@@ -607,6 +652,13 @@
         });
     }
 
+    // Функция принудительной установки скорости
+    function applySpeed(video) {
+        if (video && Math.abs(video.playbackRate - savedSpeed) > 0.01) {
+            video.playbackRate = savedSpeed;
+        }
+    }
+
     let lastTime = 0;
     let isProcessing = false;
     let lastVideoEl = null;
@@ -650,7 +702,7 @@
         
         const player = findPlayer();
         if (!player) {
-            updateStatus(t('searching'), 'error'); // Если плеер не найден, пишем об этом
+            updateStatus(t('searching'), 'error'); 
             return;
         }
 
@@ -662,6 +714,7 @@
 
             applyPauseFix(video);
             applyVolumeSync(video);
+            applySpeed(video); // Принудительно применяем скорость
 
             const episodeKey = `${animeId}:${currentEp}`;
             if (video !== lastVideoEl || episodeKey !== lastEpisodeKey) {
@@ -674,6 +727,8 @@
                 pauseActionTime = 0;
                 needsUserClickToPlay = false;
                 hasStartedCurrentVideo = false; 
+                
+                applySpeed(video); // Применяем скорость сразу при смене видео
             }
 
             if (video.currentTime > 2) {
