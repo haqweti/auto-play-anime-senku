@@ -261,6 +261,9 @@
         footer { margin-top: 20px; padding-top: 30px; border-top: 1px solid var(--card-border); width: 100%; text-align: center; color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
         footer .author { color: #fff; font-weight: 600; }
         footer .copyright { font-size: 11px; opacity: 0.6; }
+        footer .support { font-size: 12px; margin-top: 5px; }
+        footer .support a { color: var(--accent); text-decoration: none; font-weight: 600; }
+        footer .support a:hover { text-decoration: underline; }
 
         /* Адаптивность */
         @media (max-width: 768px) {
@@ -513,6 +516,9 @@
         <!-- FOOTER -->
         <footer class="fade-in-up" style="animation-delay: 0.8s;">
             <div class="author">Автор: mikuro</div>
+            <div class="support" data-ru="При поддержке: <a href='https://github.com/Ra9ge' target='_blank'>Ra9ge</a>" data-en="Supported by: <a href='https://github.com/Ra9ge' target='_blank'>Ra9ge</a>">
+                При поддержке: <a href="https://github.com/Ra9ge" target="_blank">Ra9ge</a>
+            </div>
             <div class="copyright" data-ru="Все права защищены © 2026" data-en="All rights reserved © 2026">Все права защищены © 2026</div>
         </footer>
 
