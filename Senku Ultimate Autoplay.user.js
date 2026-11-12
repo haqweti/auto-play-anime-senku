@@ -78,7 +78,7 @@
         queue = saved.map(item => typeof item === 'string' ? { url: item, title: t('loading'), image: '', startEp: 1, totalEps: '?' } : item);
     } catch(e) {}
 
-    // --- 1. СТИЛИ (Немного обновлены под новый плеер) ---
+    // --- 1. СТИЛИ (Обновлены под новый плеер) ---
     if (!document.getElementById('senku-font')) {
         const link = document.createElement('link');
         link.id = 'senku-font';
@@ -466,8 +466,6 @@
                 if (doc && video) return { frame, doc, video };
             } catch (e) {
                 // Ошибка CORS: iframe с другого домена. Мы не можем заглянуть внутрь.
-                // Но если он есть, скорее всего, это и есть плеер. 
-                // В таком случае мы не можем управлять видео напрямую.
             }
         }
 
