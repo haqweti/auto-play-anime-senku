@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.3.0
-// @description  Автозапуск, умная очередь, фикс паузы, контроль скорости и адаптивный поиск плеера
+// @version      3.3.1
+// @description  Автозапуск, умная очередь, фикс паузы, контроль скорости и обход блокировки автоплея
 // @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -52,7 +52,7 @@
     const VOLUME_KEY = 'senku_autonext_volume';
     const QUEUE_KEY = 'senku_autonext_queue';
     const PANEL_OPEN_KEY = 'senku_panel_open'; 
-    const SPEED_KEY = 'senku_autonext_speed'; // Новый ключ для скорости
+    const SPEED_KEY = 'senku_autonext_speed'; 
     
     let needsUserClickToPlay = false; 
     let userInteracted = false;
@@ -137,27 +137,12 @@
         
         .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
         
-        /* НОВЫЙ БЛОК СКОРОСТИ */
         .senku-speed-btn {
-            background: rgba(255,255,255,0.06);
-            color: rgba(255,255,255,0.85);
-            border: 1px solid transparent;
-            border-radius: 8px;
-            padding: 4px 8px;
-            font-family: inherit;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-left: 4px;
-            flex-shrink: 0;
-            min-width: 38px;
-            text-align: center;
+            background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border: 1px solid transparent;
+            border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 11px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; margin-left: 4px; flex-shrink: 0; min-width: 38px; text-align: center;
         }
-        .senku-speed-btn:hover {
-            background: rgba(255,255,255,0.12);
-            color: #fff;
-        }
+        .senku-speed-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
         .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
         .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
@@ -311,7 +296,7 @@
     contentWrap.appendChild(statusText); 
     contentWrap.appendChild(divider);
     contentWrap.appendChild(volContainer); 
-    contentWrap.appendChild(speedBtn); // Вставляем кнопку скорости
+    contentWrap.appendChild(speedBtn); 
     contentWrap.appendChild(iconQueue); 
     contentWrap.appendChild(toggleBtn);
 
@@ -659,6 +644,27 @@
         }
     }
 
+    // УМНЫЙ ЗАПУСК ВИДЕО (Обход автоплея)
+    function tryPlay(video) {
+        if (!video) return;
+        
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+            playPromise.catch((error) => {
+                if (error.name === 'NotAllowedError') {
+                    // Браузер заблокировал звук. Включаем без звука.
+                    video.dataset.senkuProgrammaticVol = 'true';
+                    video.muted = true;
+                    video.play().then(() => {
+                        needsUserClickToPlay = true;
+                        updateStatus(t('clickSite'), 'error');
+                    }).catch(() => {});
+                    video.dataset.senkuProgrammaticVol = 'false';
+                }
+            });
+        }
+    }
+
     let lastTime = 0;
     let isProcessing = false;
     let lastVideoEl = null;
@@ -681,16 +687,26 @@
         return true;
     }
 
+    // Если пользователь кликнул по сайту, а у нас стояла блокировка - снимаем её и включаем звук
     document.addEventListener('click', () => {
         userInteracted = true;
         if (!needsUserClickToPlay) return;
         needsUserClickToPlay = false;
+        
         const player = findPlayer();
         if (!player) return;
         try {
             const video = player.video;
-            if (video && video.paused) {  
-                video.play().catch(() => {}); 
+            if (video) {
+                if (video.paused) {
+                    video.play().catch(() => {}); 
+                }
+                if (video.muted) {
+                    video.dataset.senkuProgrammaticVol = 'true';
+                    video.muted = false;
+                    video.volume = savedVolume;
+                    video.dataset.senkuProgrammaticVol = 'false';
+                }
                 updateStatus(`▶️ ${t('startedClick')}`, 'active'); 
             }
         } catch(e) {}
@@ -714,7 +730,7 @@
 
             applyPauseFix(video);
             applyVolumeSync(video);
-            applySpeed(video); // Принудительно применяем скорость
+            applySpeed(video); 
 
             const episodeKey = `${animeId}:${currentEp}`;
             if (video !== lastVideoEl || episodeKey !== lastEpisodeKey) {
@@ -725,10 +741,9 @@
                 lastTime = 0; 
                 pauseActionState = 0; 
                 pauseActionTime = 0;
-                needsUserClickToPlay = false;
-                hasStartedCurrentVideo = false; 
+                // needsUserClickToPlay не сбрасываем, чтобы пользователь мог кликнуть и размьютить
                 
-                applySpeed(video); // Применяем скорость сразу при смене видео
+                applySpeed(video); 
             }
 
             if (video.currentTime > 2) {
@@ -790,23 +805,27 @@
                             const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
                             updateStatus(`${t('resume')}: ${timeMatch ? timeMatch[0] : ''}`, 'active');
                             clickElement(resumeBtn);
+                            pauseActionState = 2; // Пропускаем шаг 1
+                            pauseActionTime = Date.now();
                         } else {
-                            updateStatus(t('waitingStart'), 'error');
+                            updateStatus(t('pressPlay'), 'active');
+                            const playBtn = findPlayButton(iframeDoc);
+                            if (playBtn) clickElement(playBtn);
+                            else clickElement(video);
+                            
+                            tryPlay(video);
+                            pauseActionState = 1;
+                            pauseActionTime = Date.now();
                         }
-                        pauseActionState = 1;
-                        pauseActionTime = Date.now();
                     } 
                     else if (pauseActionState === 1) {
                         if (Date.now() - pauseActionTime > 3000) {
                             const playBtn = findPlayButton(iframeDoc);
-                            updateStatus(t('pressPlay'), 'active');
+                            updateStatus(t('kickVideo'), 'active');
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
                             
-                            video.play().catch(() => {
-                                needsUserClickToPlay = true;
-                                updateStatus(t('clickSite'), 'error');
-                            });
+                            tryPlay(video);
                             pauseActionState = 2;
                             pauseActionTime = Date.now();
                         } else {
@@ -815,12 +834,9 @@
                     }
                     else if (pauseActionState === 2) {
                         if (Date.now() - pauseActionTime > 3000) {
-                            updateStatus(t('kickVideo'), 'active');
+                            updateStatus(t('repeatPlay'), 'active');
                             clickElement(video);
-                            video.play().catch(() => {
-                                needsUserClickToPlay = true;
-                                updateStatus(t('clickSite'), 'error');
-                            });
+                            tryPlay(video);
                             pauseActionState = 3;
                             pauseActionTime = Date.now();
                         } else {
@@ -834,7 +850,7 @@
                             const playBtn = findPlayButton(iframeDoc);
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
-                            video.play().catch(() => {});
+                            tryPlay(video);
                             pauseActionState = 2; 
                             pauseActionTime = Date.now();
                         } else {
@@ -845,9 +861,10 @@
             } else {
                 pauseActionState = 0; 
                 pauseActionTime = 0; 
-                needsUserClickToPlay = false; 
                 
-                if (video.currentTime > 0) updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
+                if (video.currentTime > 0 && !needsUserClickToPlay) {
+                    updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
+                }
                 
                 if (Math.abs(video.currentTime - lastTime) < 0.1) {
                     if (pauseActionTime === 0) pauseActionTime = Date.now(); 
@@ -857,7 +874,7 @@
                         const playBtn = findPlayButton(iframeDoc);
                         if (playBtn) clickElement(playBtn);
                         else clickElement(video);
-                        video.play().catch(() => {});
+                        tryPlay(video);
                         pauseActionTime = 0;
                     }
                 } else {
