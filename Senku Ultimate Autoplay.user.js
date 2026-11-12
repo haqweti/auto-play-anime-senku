@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.2.3
+// @version      3.2.4
 // @description  Автозапуск, умная очередь, фикс паузы, адаптивный поиск плеера
 // @author       mikuro
 // @match        *://senku.one/*
@@ -78,7 +78,7 @@
         queue = saved.map(item => typeof item === 'string' ? { url: item, title: t('loading'), image: '', startEp: 1, totalEps: '?' } : item);
     } catch(e) {}
 
-    // --- 1. СТИЛИ (Обновлены под новый плеер) ---
+    // --- 1. СТИЛИ (Обновленный дизайн под кастомный плеер) ---
     if (!document.getElementById('senku-font')) {
         const link = document.createElement('link');
         link.id = 'senku-font';
@@ -91,16 +91,16 @@
     style.textContent = `
         #senku-autonext-panel { 
             position: fixed !important; top: 15px !important; right: 15px !important; left: auto !important; bottom: auto !important; 
-            background: rgba(18, 18, 18, 0.95) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important;
-            color: #fff !important; padding: 6px 10px !important; border-radius: 20px !important;
+            background: rgba(15, 15, 15, 0.95) !important; backdrop-filter: blur(15px) !important; -webkit-backdrop-filter: blur(15px) !important;
+            color: #fff !important; padding: 6px 10px !important; border-radius: 12px !important;
             z-index: 2147483647 !important; font-family: "Unbounded", system-ui, sans-serif !important; 
             font-size: 11px !important; font-weight: 600 !important; display: flex !important; 
             flex-direction: row-reverse !important; align-items: center !important; 
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7) !important; border: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255,255,255,0.08) !important;
             height: 40px !important; box-sizing: border-box !important; 
             transition: box-shadow 0.3s, border-color 0.3s !important; pointer-events: auto !important; user-select: none; overflow: hidden;
         }
-        #senku-autonext-panel:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.9) !important; border-color: rgba(255,255,255,0.2) !important; }
+        #senku-autonext-panel:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7) !important; border-color: rgba(255,255,255,0.15) !important; }
 
         #senku-trigger-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; cursor: pointer; transition: background 0.2s; }
         #senku-trigger-btn:hover { background: rgba(255,255,255,0.1); }
@@ -116,33 +116,32 @@
         #senku-status-text.error { color: #ff3b47 !important; }
         #senku-status-text.active { color: #fff !important; }
 
-        .senku-toggle { position: relative !important; width: 38px !important; height: 22px !important; flex: 0 0 38px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .2) !important; transition: background-color .28s ease !important; border: none !important; cursor: pointer !important; padding: 0 !important; margin-left: 4px; }
-        .senku-toggle::after { content: "" !important; position: absolute !important; top: 2px !important; left: 2px !important; width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #fff !important; box-shadow: 0 1px 3px rgba(0, 0, 0, .4) !important; transition: transform .32s cubic-bezier(.34, 1.36, .64, 1), width .2s ease !important; }
-        .senku-toggle:active::after { width: 21px !important; }
+        .senku-toggle { position: relative !important; width: 36px !important; height: 20px !important; flex: 0 0 36px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .16) !important; transition: background-color .28s ease !important; border: none !important; cursor: pointer !important; padding: 0 !important; margin-left: 4px; }
+        .senku-toggle::after { content: "" !important; position: absolute !important; top: 2px !important; left: 2px !important; width: 16px !important; height: 16px !important; border-radius: 50% !important; background: #fff !important; box-shadow: 0 1px 3px rgba(0, 0, 0, .4) !important; transition: transform .32s cubic-bezier(.34, 1.36, .64, 1), width .2s ease !important; }
+        .senku-toggle:active::after { width: 19px !important; }
         .senku-toggle.active { background: #ff3b47 !important; }
         .senku-toggle.active::after { transform: translateX(16px) !important; }
         .senku-toggle.active:active::after { transform: translateX(13px) !important; }
 
-        .senku-volume-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 12px; margin-left: 4px; flex-shrink: 0; }
-        .senku-vol-icon { width: 14px; height: 14px; fill: rgba(255,255,255,0.7); flex-shrink: 0; }
-        #senku-volume-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); outline: none; cursor: pointer; background-image: linear-gradient(#ff3b47, #ff3b47); background-size: 100% 100%; background-repeat: no-repeat; flex-shrink: 0; }
+        .senku-volume-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 8px; margin-left: 4px; flex-shrink: 0; }
+        .senku-vol-icon { width: 14px; height: 14px; fill: rgba(255,255,255,0.6); flex-shrink: 0; }
+        #senku-volume-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.22); outline: none; cursor: pointer; background-image: linear-gradient(#ff3b47, #ff3b47); background-size: 100% 100%; background-repeat: no-repeat; flex-shrink: 0; }
         #senku-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); transition: transform 0.1s; }
         #senku-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
         
-        .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.15); margin: 0 2px; flex-shrink: 0; }
+        .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
         
-        .senku-queue-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
+        .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
         .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
         
-        /* Окно очереди осталось практически без изменений, но стало чуть темнее */
         #senku-queue-modal { 
             position: fixed !important; top: 65px !important; right: 15px !important; left: auto !important;
             transform: translateY(-10px) !important; opacity: 0; pointer-events: none;
-            background: rgba(18, 18, 18, 0.98) !important; backdrop-filter: blur(25px) saturate(150%) !important; 
-            border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 20px !important; padding: 20px !important; 
+            background: rgba(15, 15, 15, 0.98) !important; backdrop-filter: blur(25px) saturate(150%) !important; 
+            border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 16px !important; padding: 20px !important; 
             z-index: 2147483646 !important; color: #fff !important; font-family: "Unbounded", system-ui, sans-serif !important; 
             font-size: 12px !important; width: 420px !important; max-width: 90vw !important; max-height: calc(100vh - 85px) !important; 
-            display: flex !important; flex-direction: column !important; gap: 15px !important; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9) !important;
+            display: flex !important; flex-direction: column !important; gap: 15px !important; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
             transition: opacity 0.3s ease, transform 0.3s ease !important;
         }
         #senku-queue-modal.visible { opacity: 1; transform: translateY(0) !important; pointer-events: auto; }
@@ -454,7 +453,7 @@
         // 1. Пытаемся найти стандартные iframe Senku
         let frames = Array.from(document.querySelectorAll('iframe[src*="senku_plyr"], iframe[src*="/embed"]'));
         
-        // 2. Если не нашли, ищем вообще любой iframe (вдруг AniLibria встроена по-другому)
+        // 2. Если не нашли, ищем вообще любой iframe
         if (frames.length === 0) {
             frames = Array.from(document.querySelectorAll('iframe'));
         }
@@ -465,7 +464,7 @@
                 const video = doc ? doc.querySelector('video') : null;
                 if (doc && video) return { frame, doc, video };
             } catch (e) {
-                // Ошибка CORS: iframe с другого домена. Мы не можем заглянуть внутрь.
+                // CORS error - probably cross origin. We can't access it.
             }
         }
 
@@ -544,7 +543,7 @@
 
     async function sendHeartbeat(video, animeId, episode) {
         try {
-            await fetch('/api/v2/watch/heartbeat', {
+            const res = await fetch('/api/v2/watch/heartbeat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -555,6 +554,8 @@
                     duration: Math.floor(video.duration)
                 })
             });
+            // Если 401 - мы просто игнорируем, чтобы не спамить
+            if (res.status === 401) return; 
         } catch (e) {}
     }
 
