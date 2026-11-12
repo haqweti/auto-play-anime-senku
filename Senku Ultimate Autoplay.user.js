@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.1.1
+// @version      3.2.1
 // @description  Автозапуск, умная очередь, фикс паузы, поиск серий по ссылкам и API heartbeat
 // @author       mikuro
 // @match        *://senku.one/*
