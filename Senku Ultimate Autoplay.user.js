@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.3.2
-// @description  Автозапуск, умная очередь, фикс паузы, контроль скорости и обход блокировки автоплея
+// @version      3.4.0
+// @description  Автозапуск, нативный переход, умная очередь, фикс паузы, контроль скорости
 // @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -241,7 +241,7 @@
     volContainer.appendChild(volIcon);
     volContainer.appendChild(volSlider);
 
-    // --- КНОПКА СКОРОСТИ ---
+    // КНОПКА СКОРОСТИ
     const speedBtn = document.createElement('button');
     speedBtn.className = 'senku-speed-btn';
     speedBtn.title = t('speed');
@@ -530,6 +530,25 @@
         return /** @type {HTMLElement|null} */ (doc.querySelector('.plyr__control--overlaid, [data-plyr="play"], button[aria-label="Смотреть"]'));
     }
 
+    // НОВАЯ ФУНКЦИЯ: Поиск нативной кнопки "Следующая серия"
+    function findNativeNextButton() {
+        // Ищем все кнопки на странице (включая внутри iframe, если есть доступ)
+        const player = findPlayer();
+        const doc = player ? player.doc : document;
+
+        const potentialBtns = Array.from(doc.querySelectorAll('button, a, div[role="button"], .vjs-next-button'));
+        
+        for (let btn of potentialBtns) {
+            const text = (btn.textContent || '').toLowerCase();
+            // Проверяем текст на наличие фразы и видимость элемента
+            if ((text.includes('следующая серия') || text.includes('новая серия')) && 
+                (btn.offsetParent !== null || doc.defaultView?.getComputedStyle(btn).display !== 'none')) {
+                return btn;
+            }
+        }
+        return null;
+    }
+
     function findEpisodeLink(ep) {
         const current = parseWatchHref(window.location.href);
         const links = Array.from(document.querySelectorAll('a[href*="/watch"]'));
@@ -753,16 +772,28 @@
             const totalEps = getTotalEpisodes();
             const volText = savedVolume === 0 ? t('muted') : `${Math.round(savedVolume * 100)}%`;
 
-            if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 0.5)) {
+            // ЛОГИКА ОКОНЧАНИЯ ВИДЕО
+            if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 1.5)) {
                 if (isProcessing) return;
                 isProcessing = true;
                 
+                // 1. ПРИОРИТЕТ: Нативная кнопка "Следующая серия" от плеера
+                const nativeBtn = findNativeNextButton();
+                if (nativeBtn) {
+                    updateStatus(`Нативная кнопка`, 'active');
+                    clickElement(nativeBtn);
+                    setTimeout(() => { isProcessing = false; }, 5000); 
+                    return;
+                }
+
+                // 2. ПРИОРИТЕТ: Клик по серии в боковом меню
                 const nextLink = findEpisodeLink(currentEp + 1);
                 
                 if (nextLink) {
                     updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
                     openEpisode(nextLink, currentEp);
                 } else {
+                    // 3. ПРИОРИТЕТ: Очередь
                     const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
                     const card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
                     const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
