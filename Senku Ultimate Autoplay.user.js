@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.3.1
+// @version      3.3.2
 // @description  Автозапуск, умная очередь, фикс паузы, контроль скорости и обход блокировки автоплея
 // @author       mikuro
 // @match        *://senku.one/*
@@ -72,7 +72,6 @@
     let savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) || '1.0');
     if (isNaN(savedVolume)) savedVolume = 1.0;
 
-    // --- ЛОГИКА СКОРОСТИ ---
     const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.5, 0.75];
     let savedSpeed = parseFloat(localStorage.getItem(SPEED_KEY) || '1');
     if (!SPEEDS.includes(savedSpeed)) savedSpeed = 1;
@@ -242,7 +241,7 @@
     volContainer.appendChild(volIcon);
     volContainer.appendChild(volSlider);
 
-    // --- НОВАЯ КНОПКА СКОРОСТИ ---
+    // --- КНОПКА СКОРОСТИ ---
     const speedBtn = document.createElement('button');
     speedBtn.className = 'senku-speed-btn';
     speedBtn.title = t('speed');
@@ -637,14 +636,12 @@
         });
     }
 
-    // Функция принудительной установки скорости
     function applySpeed(video) {
         if (video && Math.abs(video.playbackRate - savedSpeed) > 0.01) {
             video.playbackRate = savedSpeed;
         }
     }
 
-    // УМНЫЙ ЗАПУСК ВИДЕО (Обход автоплея)
     function tryPlay(video) {
         if (!video) return;
         
@@ -652,7 +649,6 @@
         if (playPromise !== undefined) {
             playPromise.catch((error) => {
                 if (error.name === 'NotAllowedError') {
-                    // Браузер заблокировал звук. Включаем без звука.
                     video.dataset.senkuProgrammaticVol = 'true';
                     video.muted = true;
                     video.play().then(() => {
@@ -687,7 +683,6 @@
         return true;
     }
 
-    // Если пользователь кликнул по сайту, а у нас стояла блокировка - снимаем её и включаем звук
     document.addEventListener('click', () => {
         userInteracted = true;
         if (!needsUserClickToPlay) return;
@@ -741,7 +736,6 @@
                 lastTime = 0; 
                 pauseActionState = 0; 
                 pauseActionTime = 0;
-                // needsUserClickToPlay не сбрасываем, чтобы пользователь мог кликнуть и размьютить
                 
                 applySpeed(video); 
             }
@@ -805,7 +799,7 @@
                             const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
                             updateStatus(`${t('resume')}: ${timeMatch ? timeMatch[0] : ''}`, 'active');
                             clickElement(resumeBtn);
-                            pauseActionState = 2; // Пропускаем шаг 1
+                            pauseActionState = 2;
                             pauseActionTime = Date.now();
                         } else {
                             updateStatus(t('pressPlay'), 'active');
