@@ -8,15 +8,20 @@
     <!-- Мета-теги для Discord, Telegram, VK, Facebook (Open Graph) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://haqweti.github.io/auto-play-anime-senku/">
-    <meta property="og:title" content="Senku Ultimate Autoplay">
-    <meta property="og:description" content="Userscript for senku.one: auto-play next episodes, smart playlist, and volume sync.">
+    <meta property="og:title" content="Senku Ultimate Autoplay v3.5.0">
+    <meta property="og:description" content="Полный контроль скоростью, громкостью и очередью аниме на senku.one. Надёжный автопереход между сериями.">
     <meta property="og:image" content="https://haqweti.github.io/auto-play-anime-senku/banner.png">
 
     <!-- Мета-теги специально для Twitter / X -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Senku Ultimate Autoplay">
-    <meta name="twitter:description" content="Userscript for senku.one: auto-play next episodes, smart playlist, and volume sync.">
+    <meta name="twitter:title" content="Senku Ultimate Autoplay v3.5.0">
+    <meta name="twitter:description" content="Полный контроль скоростью, громкостью и очередью аниме на senku.one.">
     <meta name="twitter:image" content="https://haqweti.github.io/auto-play-anime-senku/banner.png">
+
+    <!-- Дополнительные мета-теги для SEO -->
+    <meta name="description" content="Senku Ultimate Autoplay - Userscript для senku.one с автопереходом, управлением очередью и синхронизацией звука.">
+    <meta name="keywords" content="senku.one, userscript, tampermonkey, автопереход, аниме, плеер">
+    <meta name="theme-color" content="#ff3b47">
 
     <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -32,15 +37,15 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }
-        
-        body { 
-            font-family: 'Unbounded', sans-serif; 
-            background-color: var(--bg); 
-            color: var(--text-main); 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            min-height: 100vh; 
+
+        body {
+            font-family: 'Unbounded', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
             padding: 40px 20px;
             overflow-x: hidden;
             line-height: 1.5;
@@ -57,7 +62,7 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            filter: blur(5px) brightness(0.3); 
+            filter: blur(5px) brightness(0.3);
             transform: scale(1.05);
             animation: fadeInBg 2s ease-out forwards;
         }
@@ -80,20 +85,24 @@
         @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
 
         .container { max-width: 1000px; width: 100%; text-align: center; z-index: 1; display: flex; flex-direction: column; gap: 80px; }
-        
+
         /* --- Секция 1: Хедер --- */
         .hero { display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .banner-wrapper { perspective: 1000px; width: 100%; margin-bottom: 10px; }
         .banner { width: 100%; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: transform 0.1s ease-out; will-change: transform; }
+
         h1 { color: #fff; font-size: 36px; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
         h1 span { color: var(--accent); }
+
         p.desc { color: var(--text-muted); font-size: 16px; max-width: 700px; margin: 0 auto; }
-        
-        .buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 10px; }
-        a.btn { 
+
+        .version-info { display: inline-block; background: rgba(255, 59, 71, 0.1); border: 1px solid rgba(255, 59, 71, 0.3); padding: 6px 12px; border-radius: 6px; font-size: 12px; color: var(--accent); font-weight: 600; margin-top: 10px; }
+
+        .buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 20px; }
+        a.btn {
             display: inline-flex; align-items: center; justify-content: center;
-            padding: 14px 28px; border-radius: 12px; 
-            text-decoration: none; font-weight: 600; font-size: 14px; 
+            padding: 14px 28px; border-radius: 12px;
+            text-decoration: none; font-weight: 600; font-size: 14px;
             transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
             position: relative; overflow: hidden;
         }
@@ -129,7 +138,7 @@
         }
 
         .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; position: relative; z-index: 1; }
-        .feature-card { 
+        .feature-card {
             background: var(--card-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
             border: 1px solid var(--card-border); padding: 25px; border-radius: var(--radius); position: relative; overflow: hidden;
             transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
@@ -143,20 +152,20 @@
 
         /* --- Секция 3: Интерактивная демонстрация --- */
         .demo-section { background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 24px; padding: 40px 20px; position: relative; }
-        
+
         .demo-container { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; position: relative; z-index: 10; }
-        
+
         /* НОВАЯ ПАНЕЛЬ: Единый контейнер, который раскрывается */
         .demo-panel-wrapper {
-            background: rgba(22, 22, 22, 0.92); 
+            background: rgba(22, 22, 22, 0.92);
             backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-            border: 1px solid rgba(255,255,255,0.08); 
+            border: 1px solid rgba(255,255,255,0.08);
             border-radius: var(--radius);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
-            width: 100%; 
-            max-width: 500px; /* Задаем ширину, чтобы очередь смотрелась хорошо */
-            overflow: hidden; 
-            transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1); /* Плавное раскрытие */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+            transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
         }
@@ -165,22 +174,35 @@
         .demo-panel-top {
             display: flex; align-items: center; gap: 12px;
             padding: 10px 14px; font-size: 11px; font-weight: 600;
-            flex-shrink: 0; /* Чтобы не сжималась */
+            flex-shrink: 0;
         }
-        
+
         .demo-trigger { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
         .demo-trigger:hover { opacity: 1; }
         .demo-trigger svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
-        
+
         .demo-status { color: rgba(255,255,255,0.7); white-space: nowrap; margin-right: auto; }
         .demo-status.active { color: #fff; }
-        
+
         .demo-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); }
-        
+
         .demo-vol-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 8px; }
         .demo-vol-wrap svg { width: 14px; height: 14px; fill: rgba(255,255,255,0.6); }
         .demo-vol-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.22); background-image: linear-gradient(var(--accent), var(--accent)); background-size: 50% 100%; background-repeat: no-repeat; outline: none; cursor: pointer; }
         .demo-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; }
+
+        .demo-speed-btn {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255, 59, 71, 0.5);
+            color: #fff;
+            font-size: 11px; font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(255, 59, 71, 0.3);
+        }
+        .demo-speed-btn:hover { background: rgba(255, 59, 71, 0.15); }
 
         .demo-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; cursor: pointer; opacity: 0.7; margin-left: 4px; transition: stroke 0.2s; }
         .demo-queue-icon:hover { opacity: 1; stroke: var(--accent); }
@@ -193,20 +215,20 @@
 
         /* Нижняя часть (очередь), которая скрыта */
         .demo-queue-content {
-            max-height: 0; /* Изначально скрыто */
+            max-height: 0;
             opacity: 0;
             overflow: hidden;
             transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
             padding: 0 14px;
             background: rgba(0,0,0,0.2);
         }
-        
+
         /* Когда панель раскрыта */
         .demo-panel-wrapper.expanded {
             height: auto;
         }
         .demo-panel-wrapper.expanded .demo-queue-content {
-            max-height: 250px; /* Достаточно для контента */
+            max-height: 250px;
             opacity: 1;
             padding-bottom: 14px;
         }
@@ -285,22 +307,21 @@
 </head>
 <body>
     <div class="container">
-        
+
         <!-- 1. HERO SECTION -->
         <header class="hero fade-in-up" style="animation-delay: 0.1s;">
             <div class="banner-wrapper">
                 <img src="banner.png" alt="Senku Ultimate Autoplay" class="banner" id="tiltBanner">
             </div>
-            
+
             <h1>Senku <span>Ultimate Autoplay</span></h1>
-            <p class="desc" id="desc-text">Скрипт для сайта senku.one: умный автопереход серий, плейлист, синхронизация звука и расширенный функционал плеера.</p>
-            
+            <div class="version-info">v3.5.0 — Исправления безопасности и надёжность</div>
+            <p class="desc">Скрипт для сайта senku.one: умный автопереход серий, расширенное управление очередью, контроль скорости и синхронизация звука.</p>
+
             <div class="buttons">
                 <a href="https://raw.githubusercontent.com/haqweti/auto-play-anime-senku/main/Senku%20Ultimate%20Autoplay.user.js" class="btn btn-primary" id="btn-install">Установить скрипт</a>
                 <a href="https://github.com/haqweti/auto-play-anime-senku" class="btn btn-secondary" id="btn-github">GitHub</a>
                 <a href="https://t.me/Senkuone" class="btn btn-secondary" id="btn-tg">Telegram Канал</a>
-                <a href="https://t.me/senkuchater" class="btn btn-secondary" id="btn-tg-chat">Чат</a>
-                <a href="https://discord.gg/sKkrJZJTX" class="btn btn-secondary" id="btn-discord">Discord</a>
             </div>
         </header>
 
@@ -308,44 +329,46 @@
         <section class="features-section fade-in-up" style="animation-delay: 0.2s;">
             <div class="features-bg-art"></div>
             <h2 class="section-title" data-ru="Возможности в <span>действии</span>" data-en="Features in <span>Action</span>">Возможности в <span>действии</span></h2>
-            
+
             <div class="features-grid">
-                
+
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Панель управления" data-en="Control Panel">Панель управления</h3>
-                    <p data-ru="Полный контроль над громкостью, очередью и переключением прямо в плеере." data-en="Full control over volume, queue, and switching right in the player.">Полный контроль над громкостью, очередью и переключением прямо в плеере.</p>
+                    <p data-ru="Полный контроль над громкостью, скоростью, очередью и переключением прямо в плеере." data-en="Full control over volume, speed, queue, and switching right in the player.">Полный контроль над громкостью, скоростью, очередью и переключением прямо в плеере.</p>
                     <img src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" class="feature-img" style="object-fit: cover; height: 120px; object-position: top;" alt="Control Panel">
                 </div>
 
                 <div class="feature-card" data-tilt>
-                    <h3 data-ru="Умный плейлист" data-en="Smart Playlist">Умный плейлист</h3>
-                    <p data-ru="Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически." data-en="Add next seasons or titles to the queue, and they will start automatically.">Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически.</p>
-                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px; margin-top:auto;">
-                        <div style="width:30px; height:40px; background:rgba(255,255,255,0.1); border-radius:4px;"></div>
-                        <div>
-                            <div style="font-size:10px; font-weight:bold; color:#fff;" data-ru="Повар-боец Сома" data-en="Food Wars!">Повар-боец Сома</div>
-                            <div style="font-size:8px; color:#ff3b47;" data-ru="Серия 1" data-en="Episode 1">Серия 1</div>
-                        </div>
+                    <h3 data-ru="Контроль скорости" data-en="Speed Control">Контроль скорости</h3>
+                    <p data-ru="Кнопка скорости прямо в панели (0.5x - 2x). Скорость сохраняется между сериями и не сбрасывается плеером." data-en="Speed button right in the panel (0.5x - 2x). Speed is saved between episodes and not reset by the player.">Кнопка скорости прямо в панели (0.5x - 2x). Скорость сохраняется между сериями и не сбрасывается плеером.</p>
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; justify-content:center; margin-top:auto; gap:10px;">
+                        <span style="font-size:11px; font-weight:bold; color:#fff;">1x</span>
+                        <span style="font-size:11px; font-weight:bold; color:#ff3b47; background:rgba(255,59,71,0.2); padding:2px 6px; border-radius:4px;">1.5x</span>
+                        <span style="font-size:11px; font-weight:bold; color:#fff;">2x</span>
                     </div>
                 </div>
 
                 <div class="feature-card" data-tilt>
-                    <h3 data-ru="Автопереход" data-en="Auto-Next">Автопереход</h3>
-                    <p data-ru="Скрипт сам находит следующую серию и запускает её, обходя зависания плеера." data-en="The script finds the next episode and plays it, bypassing player freezes.">Скрипт сам находит следующую серию и запускает её, обходя зависания плеера.</p>
-                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; justify-content:space-between; margin-top:auto;">
-                        <span style="font-size:12px; color:#fff;" data-ru="Серия завершена" data-en="Episode ended">Серия завершена</span>
-                        <span style="color:#ff3b47; font-size:16px;">⏭</span>
+                    <h3 data-ru="Умный плейлист" data-en="Smart Playlist">Умный плейлист</h3>
+                    <p data-ru="Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически после окончания текущего." data-en="Add next seasons or titles to the queue, and they will start automatically after the current one ends.">Добавляйте следующие сезоны или тайтлы в очередь, и они запустятся автоматически после окончания текущего.</p>
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px; margin-top:auto;">
+                        <div style="width:30px; height:40px; background:rgba(255,255,255,0.1); border-radius:4px;"></div>
+                        <div>
+                            <div style="font-size:10px; font-weight:bold; color:#fff;">Следующий сезон</div>
+                            <div style="font-size:8px; color:#ff3b47;">Запустится автоматически</div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="feature-card" data-tilt>
                     <h3 data-ru="Фикс звука" data-en="Volume Sync">Фикс звука</h3>
-                    <p data-ru="Громкость в панели и плеере синхронизирована. Больше никаких сбросов на 100%." data-en="Volume in the panel and player is synchronized. No more resets to 100%.">Громкость в панели и плеере синхронизирована. Больше никаких сбросов на 100%.</p>
+                    <p data-ru="Громкость в панели и плеере синхронизирована. Больше никаких неожиданных сбросов на 100%." data-en="Volume in the panel and player is synchronized. No more unexpected resets to 100%.">Громкость в панели и плеере синхронизирована. Больше никаких неожиданных сбросов на 100%.</p>
                     <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px; margin-top:auto;">
                         <span style="font-size:14px;">🔊</span>
                         <div style="flex:1; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; position:relative;">
                             <div style="position:absolute; left:0; top:0; height:100%; width:50%; background:#ff3b47; border-radius:2px;"></div>
                         </div>
+                        <span style="font-size:10px; color:rgba(255,255,255,0.6);">50%</span>
                     </div>
                 </div>
 
@@ -355,11 +378,11 @@
         <!-- 3. INTERACTIVE DEMO -->
         <section class="demo-section fade-in-up" style="animation-delay: 0.3s;">
             <h2 class="section-title" data-ru="Попробуй <span>сам</span>" data-en="Try it <span>yourself</span>">Попробуй <span>сам</span></h2>
-            
+
             <div class="demo-container">
                 <!-- Единая панель, которая раскрывается -->
                 <div class="demo-panel-wrapper" id="interactive-panel">
-                    
+
                     <!-- Верхняя часть (статичная) -->
                     <div class="demo-panel-top">
                         <div class="demo-trigger" title="Toggle Panel">
@@ -367,16 +390,18 @@
                         </div>
 
                         <span class="demo-status active" id="demo-status-text" data-ru="Смотрю 3/12 | Mute" data-en="Watching 3/12 | Mute">Смотрю 3/12 | Mute</span>
-                        
+
                         <div class="demo-divider"></div>
-                        
+
                         <div class="demo-vol-wrap">
                             <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                             <input type="range" class="demo-vol-slider" id="demo-vol" min="0" max="100" value="50">
                         </div>
-                        
+
+                        <button class="demo-speed-btn" id="demo-speed-btn" title="Change speed">1.5x</button>
+
                         <svg class="demo-queue-icon" id="demo-queue-btn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                        
+
                         <div class="demo-toggle active" id="demo-toggle"></div>
                     </div>
 
@@ -386,7 +411,7 @@
                             <span data-ru="Очередь" data-en="Queue">Очередь</span>
                             <span id="demo-queue-close">×</span>
                         </div>
-                        
+
                         <div class="demo-queue-item">
                             <img src="https://i.pinimg.com/736x/83/5d/17/835d17cb5b78e542e44df892347ce451.jpg" class="demo-queue-img" style="object-fit: cover; object-position: top;">
                             <div class="demo-queue-info">
@@ -405,7 +430,7 @@
                     </div>
 
                 </div>
-                
+
                 <p style="font-size: 12px; color: var(--text-muted); margin-top: 20px;" data-ru="* Это интерактивный макет. Он не подключен к реальному плееру." data-en="* This is an interactive mockup. It is not connected to a real player.">* Это интерактивный макет. Он не подключен к реальному плееру.</p>
             </div>
         </section>
@@ -417,12 +442,12 @@
                 <div class="step-card">
                     <div class="step-num">1</div>
                     <h4 data-ru="Менеджер скриптов" data-en="Userscript Manager">Менеджер скриптов</h4>
-                    <p data-ru="Установите Tampermonkey или OrangeMonkey в ваш браузер." data-en="Install Tampermonkey or OrangeMonkey in your browser.">Установите Tampermonkey или OrangeMonkey в ваш браузер.</p>
+                    <p data-ru="Установите Tampermonkey в ваш браузер." data-en="Install Tampermonkey in your browser.">Установите Tampermonkey в ваш браузер.</p>
                 </div>
                 <div class="step-card">
                     <div class="step-num">2</div>
                     <h4 data-ru="Установка скрипта" data-en="Install Script">Установка скрипта</h4>
-                    <p data-ru="Нажмите зеленую кнопку «Установить скрипт» выше." data-en="Click the green 'Install Script' button above.">Нажмите зеленую кнопку «Установить скрипт» выше.</p>
+                    <p data-ru="Нажмите зелёную кнопку выше и подтвердите установку." data-en="Click the green button above and confirm installation.">Нажмите зелёную кнопку выше и подтвердите установку.</p>
                 </div>
                 <div class="step-card">
                     <div class="step-num">3</div>
@@ -432,7 +457,7 @@
                 <div class="step-card">
                     <div class="step-num">4</div>
                     <h4 data-ru="Готово!" data-en="Done!">Готово!</h4>
-                    <p data-ru="Панель управления появится в правом верхнем углу." data-en="The control panel will appear in the top right corner.">Панель управления появится в правом верхнем углу.</p>
+                    <p data-ru="Панель появится в правом верхнем углу плеера." data-en="The panel will appear in the top right corner of the player.">Панель появится в правом верхнем углу плеера.</p>
                 </div>
             </div>
         </section>
@@ -440,14 +465,14 @@
         <!-- 5. LATEST UPDATES (Dynamic Timeline) -->
         <section class="fade-in-up" style="animation-delay: 0.5s;">
             <h2 class="section-title" data-ru="Последние <span>обновления</span>" data-en="Latest <span>Updates</span>">Последние <span>обновления</span></h2>
-            
+
             <!-- Сюда JS скрипт будет автоматически вставлять данные с GitHub -->
             <div class="updates-container" id="dynamic-updates">
                 <div style="text-align: center; color: var(--text-muted); font-size: 14px;">Загрузка обновлений...</div>
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
-                <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" style="font-size: 12px; padding: 10px 20px;" data-ru="Вся история обновлений" data-en="Full Release History">Вся история обновлений</a>
+                <a href="https://github.com/haqweti/auto-play-anime-senku/releases" class="btn btn-secondary" style="font-size: 12px; padding: 10px 20px;" data-ru="Полная история релизов" data-en="Full Release History">Полная история релизов</a>
             </div>
         </section>
 
@@ -461,7 +486,7 @@
                 </div>
                 <div class="compat-item">
                     <svg class="compat-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                    <span>Tampermonkey / OrangeMonkey</span>
+                    <span>Tampermonkey</span>
                 </div>
                 <div class="compat-item">
                     <svg class="compat-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
@@ -474,40 +499,30 @@
         <section class="fade-in-up" style="animation-delay: 0.7s;">
             <h2 class="section-title" data-ru="Часто задаваемые <span>вопросы</span>" data-en="Frequently Asked <span>Questions</span>">Часто задаваемые <span>вопросы</span></h2>
             <div class="faq-container">
-                
+
                 <details>
                     <summary data-ru="Как установить скрипт?" data-en="How to install the script?">Как установить скрипт?</summary>
-                    <div class="faq-content" data-ru="Установите Tampermonkey или OrangeMonkey, затем нажмите кнопку «Установить скрипт» на этой странице. Подтвердите установку в появившемся окне." data-en="Install Tampermonkey or OrangeMonkey, then click the 'Install Script' button on this page. Confirm installation in the popup window.">Установите Tampermonkey или OrangeMonkey, затем нажмите кнопку «Установить скрипт» на этой странице. Подтвердите установку в появившемся окне.</div>
+                    <div class="faq-content" data-ru="Установите Tampermonkey, затем нажмите кнопку «Установить скрипт». Подтвердите в появившемся окне." data-en="Install Tampermonkey, then click 'Install Script'. Confirm in the popup window.">Установите Tampermonkey, затем нажмите кнопку «Установить скрипт». Подтвердите в появившемся окне.</div>
+                </details>
+
+                <details>
+                    <summary data-ru="Кнопка скорости больше не пропадает?" data-en="Speed button no longer disappears?">Кнопка скорости больше не пропадает?</summary>
+                    <div class="faq-content" data-ru="Да! В v3.5.0 исправлен баг с пропаданием кнопки при смене серии. Состояние панели теперь всегда синхронизировано." data-en="Yes! In v3.5.0, the bug with the button disappearing on episode change is fixed. The panel state is now always synchronized.">Да! В v3.5.0 исправлен баг с пропаданием кнопки при смене серии. Состояние панели теперь всегда синхронизировано.</div>
                 </details>
 
                 <details>
                     <summary data-ru="Как добавить аниме в очередь?" data-en="How to add anime to the queue?">Как добавить аниме в очередь?</summary>
-                    <div class="faq-content" data-ru="В панели управления нажмите на иконку списка (меню), вставьте ссылку на нужное аниме (например, senku.one/watch/1234) и нажмите «Доб.»." data-en="In the control panel, click the list icon (menu), paste the link to the desired anime (e.g., senku.one/watch/1234), and click 'Add'.">В панели управления нажмите на иконку списка (меню), вставьте ссылку на нужное аниме (например, senku.one/watch/1234) и нажмите «Доб.».</div>
+                    <div class="faq-content" data-ru="Нажмите на иконку списка в панели, вставьте ссылку на аниме (например, senku.one/watch/123) и нажмите «Доб.»." data-en="Click the list icon in the panel, paste the anime link (e.g., senku.one/watch/123) and click 'Add'.">Нажмите на иконку списка в панели, вставьте ссылку на аниме (например, senku.one/watch/123) и нажмите «Доб.».</div>
                 </details>
 
                 <details>
-                    <summary data-ru="Можно ли использовать очередь между разными сезонами?" data-en="Can I use the queue between different seasons?">Можно ли использовать очередь между разными сезонами?</summary>
-                    <div class="faq-content" data-ru="Да. Очередь не привязана к конкретному сезону. Вы можете добавить туда ссылки на второй, третий сезон или даже совершенно другие тайтлы, и скрипт будет переключаться между ними по завершении текущего." data-en="Yes. The queue is not tied to a specific season. You can add links to the second, third season, or even completely different titles, and the script will switch between them upon completion of the current one.">Да. Очередь не привязана к конкретному сезону. Вы можете добавить туда ссылки на второй, третий сезон или даже совершенно другие тайтлы, и скрипт будет переключаться между ними по завершении текущего.</div>
+                    <summary data-ru="Переходит ли скорость между сериями?" data-en="Does speed carry over between episodes?">Переходит ли скорость между сериями?</summary>
+                    <div class="faq-content" data-ru="Да! Скорость сохраняется в браузере и автоматически применяется к каждой новой серии. Плеер больше не сбрасывает её на 1x." data-en="Yes! Speed is saved in your browser and automatically applied to each new episode. The player no longer resets it to 1x.">Да! Скорость сохраняется в браузере и автоматически применяется к каждой новой серии. Плеер больше не сбрасывает её на 1x.</div>
                 </details>
 
                 <details>
-                    <summary data-ru="Нужно ли держать вкладку открытой для автоперехода?" data-en="Do I need to keep the tab open for auto-next?">Нужно ли держать вкладку открытой для автоперехода?</summary>
-                    <div class="faq-content" data-ru="Да, скрипт работает в контексте открытой страницы. Если вы закроете вкладку, скрипт остановится. Если вы свернете браузер, автопереход продолжит работать, но браузер может ограничить фоновую активность для экономии энергии." data-en="Yes, the script runs in the context of the open page. If you close the tab, the script stops. If you minimize the browser, auto-next will continue to work, but the browser may limit background activity to save power.">Да, скрипт работает в контексте открытой страницы. Если вы закроете вкладку, скрипт остановится. Если вы свернете браузер, автопереход продолжит работать, но браузер может ограничить фоновую активность для экономии энергии.</div>
-                </details>
-
-                <details>
-                    <summary data-ru="Что произойдёт, если серия закончится раньше времени?" data-en="What happens if the episode ends early?">Что произойдёт, если серия закончится раньше времени?</summary>
-                    <div class="faq-content" data-ru="Скрипт ориентируется на событие окончания воспроизведения (ended). Если видео оборвется из-за ошибки загрузки, скрипт попытается перезапустить его. Если это настоящий конец видеофайла (даже если он короче заявленного), скрипт переключит на следующую серию." data-en="The script relies on the playback end event (ended). If the video breaks due to a loading error, the script will try to restart it. If it's the true end of the video file (even if it's shorter than declared), the script will switch to the next episode.">Скрипт ориентируется на событие окончания воспроизведения (ended). Если видео оборвется из-за ошибки загрузки, скрипт попытается перезапустить его. Если это настоящий конец видеофайла (даже если он короче заявленного), скрипт переключит на следующую серию.</div>
-                </details>
-
-                <details>
-                    <summary data-ru="Можно ли вручную переключать серии при активной очереди?" data-en="Can I manually switch episodes while the queue is active?">Можно ли вручную переключать серии при активной очереди?</summary>
-                    <div class="faq-content" data-ru="Да. Вы можете в любой момент нажать на любую серию в меню сайта. Скрипт поймёт, что вы переключились вручную, обновит свой статус и продолжит отслеживать конец уже новой серии. Очередь при этом не сбрасывается." data-en="Yes. You can click on any episode in the site menu at any time. The script will understand that you switched manually, update its status, and continue tracking the end of the new episode. The queue is not reset.">Да. Вы можете в любой момент нажать на любую серию в меню сайта. Скрипт поймёт, что вы переключились вручную, обновит свой статус и продолжит отслеживать конец уже новой серии. Очередь при этом не сбрасывается.</div>
-                </details>
-
-                <details>
-                    <summary data-ru="Как работает синхронизация громкости?" data-en="How does volume sync work?">Как работает синхронизация громкости?</summary>
-                    <div class="faq-content" data-ru="Скрипт отслеживает изменения громкости как в самом плеере, так и в панели управления. Если вы меняете звук в плеере, ползунок в панели двигается, и наоборот. Значение громкости сохраняется в памяти браузера и применяется к каждой новой серии." data-en="The script tracks volume changes both in the player itself and in the control panel. If you change the sound in the player, the slider in the panel moves, and vice versa. The volume value is saved in the browser's memory and applied to each new episode.">Скрипт отслеживает изменения громкости как в самом плеере, так и в панели управления. Если вы меняете звук в плеере, ползунок в панели двигается, и наоборот. Значение громкости сохраняется в памяти браузера и применяется к каждой новой серии.</div>
+                    <summary data-ru="Почему переход на следующую серию зависает?" data-en="Why does the transition hang?">Почему переход на следующую серию зависает?</summary>
+                    <div class="faq-content" data-ru="В v3.5.0 это исправлено! Введен флаг transitionInProgress для предотвращения двойных кликов. Таймауты увеличены до 8 сек для гарантированного перехода." data-en="Fixed in v3.5.0! A transitionInProgress flag prevents double-clicks. Timeouts increased to 8 seconds for guaranteed transition.">В v3.5.0 это исправлено! Введен флаг transitionInProgress для предотвращения двойных кликов. Таймауты увеличены до 8 сек для гарантированного перехода.</div>
                 </details>
 
             </div>
@@ -527,17 +542,15 @@
     <script>
         // --- 1. Логика перевода ---
         const isRussian = navigator.language.toLowerCase().startsWith('ru');
-        
+
         if (!isRussian) {
             document.querySelectorAll('[data-en]').forEach(el => {
                 el.innerHTML = el.getAttribute('data-en');
             });
-            
+
             document.getElementById('btn-install').innerText = 'Install Script';
             document.getElementById('btn-github').innerText = 'GitHub';
             document.getElementById('btn-tg').innerText = 'Telegram Channel';
-            document.getElementById('btn-tg-chat').innerText = 'Chat';
-            document.getElementById('btn-discord').innerText = 'Discord';
         }
 
         // --- 2. 3D-наклон для баннера и карточек ---
@@ -574,8 +587,12 @@
         const demoToggle = document.getElementById('demo-toggle');
         const demoStatus = document.getElementById('demo-status-text');
         const demoVol = document.getElementById('demo-vol');
+        const demoSpeedBtn = document.getElementById('demo-speed-btn');
         const demoQueueBtn = document.getElementById('demo-queue-btn');
         const demoQueueClose = document.getElementById('demo-queue-close');
+
+        const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.5, 0.75];
+        let currentSpeedIndex = 2; // 1.5x
 
         function updateDemoStatus() {
             if (!demoToggle.classList.contains('active')) {
@@ -593,7 +610,7 @@
             demoToggle.classList.toggle('active');
             updateDemoStatus();
             if (!demoToggle.classList.contains('active')) {
-                demoPanel.classList.remove('expanded'); 
+                demoPanel.classList.remove('expanded');
                 demoQueueBtn.classList.remove('active-icon');
             }
         });
@@ -601,6 +618,11 @@
         demoVol.addEventListener('input', (e) => {
             e.target.style.backgroundSize = `${e.target.value}% 100%`;
             updateDemoStatus();
+        });
+
+        demoSpeedBtn.addEventListener('click', () => {
+            currentSpeedIndex = (currentSpeedIndex + 1) % SPEEDS.length;
+            demoSpeedBtn.innerText = SPEEDS[currentSpeedIndex] === 1 ? '1x' : `${SPEEDS[currentSpeedIndex]}x`;
         });
 
         demoQueueBtn.addEventListener('click', () => {
@@ -624,26 +646,25 @@
             try {
                 const response = await fetch('https://api.github.com/repos/haqweti/auto-play-anime-senku/releases?per_page=3');
                 if (!response.ok) throw new Error('Network response was not ok');
-                
+
                 const releases = await response.json();
-                
+
                 if (releases.length === 0) {
                     container.innerHTML = `<div style="text-align: center; color: var(--text-muted);">${isRussian ? 'Нет доступных релизов.' : 'No releases available.'}</div>`;
                     return;
                 }
 
-                container.innerHTML = ''; 
+                container.innerHTML = '';
 
                 releases.forEach((release, index) => {
-                    const isLatest = index === 0; 
+                    const isLatest = index === 0;
                     const dateObj = new Date(release.published_at);
                     const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}.${String(dateObj.getMonth() + 1).padStart(2, '0')}.${dateObj.getFullYear()}`;
-                    
+
                     let bodyText = release.body || 'Описание отсутствует';
                     let listItems = '';
                     const lines = bodyText.split('\n').filter(line => line.trim().length > 0);
-                    
-                    // Берем только первые 4 строчки, чтобы не перегружать
+
                     lines.slice(0, 4).forEach(line => {
                         const cleanLine = line.replace(/^[*#\-\s]+/, '').trim();
                         if (cleanLine) {
@@ -667,7 +688,7 @@
                             </ul>
                         </div>
                     `;
-                    
+
                     container.insertAdjacentHTML('beforeend', cardHTML);
                 });
 
