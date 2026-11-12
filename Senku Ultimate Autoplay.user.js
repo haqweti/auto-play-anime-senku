@@ -17,8 +17,8 @@
 (function() {
     'use strict';
 
-    if (window.top !== window.self) return; 
-    if (!window.location.href.includes('/watch')) return; 
+    if (window.top !== window.self) return;
+    const onWatchPage = () => window.location.href.includes('/watch');
 
     // --- ЛОКАЛИЗАЦИЯ / LOCALIZATION ---
     const isRussian = navigator.language.toLowerCase().startsWith('ru');
@@ -217,15 +217,13 @@
         target.style.backgroundSize = `${savedVolume * 100}% 100%`;
         localStorage.setItem(VOLUME_KEY, String(savedVolume));
         
-        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
-        if (iframe && iframe.contentDocument) {
-            const video = /** @type {HTMLVideoElement|null} */ (iframe.contentDocument.querySelector('video'));
-            if (video) {
-                video.dataset.senkuProgrammaticVol = 'true'; 
-                video.volume = savedVolume;
-                video.muted = (savedVolume === 0);
-                setTimeout(() => { video.dataset.senkuProgrammaticVol = 'false'; }, 50);
-            }
+        const player = findPlayer();
+        const video = player ? player.video : null;
+        if (video) {
+            video.dataset.senkuProgrammaticVol = 'true';
+            video.volume = savedVolume;
+            video.muted = (savedVolume === 0);
+            setTimeout(() => { video.dataset.senkuProgrammaticVol = 'false'; }, 50);
         }
     });
 
@@ -422,6 +420,11 @@
 
     // --- 5. ДОБАВЛЕНИЕ НА СТРАНИЦУ И КЛИК ---
     function addPanel() {
+        if (!onWatchPage()) {
+            if (panel.isConnected) panel.remove();
+            if (queueModal.isConnected) queueModal.remove();
+            return;
+        }
         if (!document.getElementById('senku-autonext-panel')) { document.body.appendChild(panel); updateButtonState(); }
         if (!document.getElementById('senku-queue-modal')) { document.body.appendChild(queueModal); }
     }
@@ -447,11 +450,43 @@
         } catch (e) { return null; }
     }
 
-    function getCurrentEpisode(iframe) {
-        const fromIframe = iframe.src.match(/[?&]episode=(\d+)/) || iframe.src.match(/[?&]ep=(\d+)/);
-        if (fromIframe) return parseInt(fromIframe[1], 10);
+    function findPlayer() {
+        const frames = /** @type {HTMLIFrameElement[]} */ (Array.from(document.querySelectorAll('iframe[src*="senku_plyr"], iframe[src*="/embed"]')));
+        for (const frame of frames) {
+            try {
+                const doc = frame.contentDocument || frame.contentWindow?.document;
+                const video = /** @type {HTMLVideoElement|null} */ (doc ? doc.querySelector('video') : null);
+                if (doc && video) return { frame, doc, video };
+            } catch (e) {}
+        }
+        const video = /** @type {HTMLVideoElement|null} */ (document.querySelector('video[x-webkit-airplay]'));
+        if (video) return { frame: null, doc: document, video };
+        return null;
+    }
+
+    function getCurrentEpisode(player) {
+        const frame = player ? player.frame : null;
+        if (frame) {
+            try {
+                const inner = frame.contentWindow?.location.search.match(/[?&]episode=(\d+)/);
+                if (inner) return parseInt(inner[1], 10);
+            } catch (e) {}
+            const fromIframe = frame.src.match(/[?&]episode=(\d+)/) || frame.src.match(/[?&]ep=(\d+)/);
+            if (fromIframe) return parseInt(fromIframe[1], 10);
+        }
         const fromPage = parseWatchHref(window.location.href);
         return fromPage ? fromPage.ep : 1;
+    }
+
+    function findResumeButton(doc) {
+        const old = /** @type {HTMLElement|null} */ (doc.querySelector('.resume-continue'));
+        if (old) return old;
+        const buttons = /** @type {HTMLElement[]} */ (Array.from(doc.querySelectorAll('button')));
+        return buttons.find(b => /^Продолжить с/.test((b.textContent || '').trim())) || null;
+    }
+
+    function findPlayButton(doc) {
+        return /** @type {HTMLElement|null} */ (doc.querySelector('.plyr__control--overlaid, [data-plyr="play"], button[aria-label="Смотреть"]'));
     }
 
     function findEpisodeLink(ep) {
@@ -484,8 +519,8 @@
         const target = link.href;
         clickElement(link);
         setTimeout(() => {
-            const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
-            if (!iframe || getCurrentEpisode(iframe) === fromEp) window.location.href = target;
+            const player = findPlayer();
+            if (!player || getCurrentEpisode(player) === fromEp) window.location.href = target;
         }, 3000);
     }
 
@@ -561,7 +596,8 @@
 
     let lastTime = 0;
     let isProcessing = false;
-    let lastVideoEl = null; 
+    let lastVideoEl = null;
+    let lastEpisodeKey = '';
     let pauseActionState = 0; 
     let pauseActionTime = 0;
 
@@ -584,11 +620,11 @@
         userInteracted = true;
         if (!needsUserClickToPlay) return;
         needsUserClickToPlay = false;
-        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
-        if (!iframe) return;
+        const player = findPlayer();
+        if (!player) return;
         try {
-            const video = /** @type {HTMLVideoElement|null} */ ((iframe.contentDocument || iframe.contentWindow?.document)?.querySelector('video'));
-            if (video && video.paused) { 
+            const video = player.video;
+            if (video && video.paused) {  
                 video.play().catch(() => {}); 
                 updateStatus(`▶️ ${t('startedClick')}`, 'active'); 
             }
@@ -597,25 +633,25 @@
 
     setInterval(() => {
         if (localStorage.getItem(STORAGE_KEY) === 'false') return;
-        const iframe = /** @type {HTMLIFrameElement|null} */ (document.querySelector('iframe[src*="senku_plyr"]'));
-        if (!iframe) return;
-        
+        if (!onWatchPage()) return;
+        const player = findPlayer();
+        if (!player) return;
+
         try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (!iframeDoc) return;
-
-            const currentEp = getCurrentEpisode(iframe);
+            const iframeDoc = player.doc;
+            const currentEp = getCurrentEpisode(player);
             const animeId = getAnimeId();
-
-            const video = /** @type {HTMLVideoElement|null} */ (iframeDoc.querySelector('video'));
-            if (!video) return;
+            const video = player.video;
 
             applyPauseFix(video);
             applyVolumeSync(video);
 
-            if (video !== lastVideoEl) {
-                lastVideoEl = video; 
-                isProcessing = false; 
+            const episodeKey = `${animeId}:${currentEp}`;
+            if (video !== lastVideoEl || episodeKey !== lastEpisodeKey) {
+                lastVideoEl = video;
+                lastEpisodeKey = episodeKey;
+                if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+                isProcessing = false;  
                 lastTime = 0; 
                 pauseActionState = 0; 
                 pauseActionTime = 0;
@@ -675,8 +711,8 @@
                     pauseActionTime = 0;
                 } else {
                     if (pauseActionState === 0) {
-                        const resumeBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.resume-continue'));
-                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframe.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
+                        const resumeBtn = findResumeButton(iframeDoc);
+                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframeDoc.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
                         
                         if (isResumeVisible && resumeBtn) {
                             const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
@@ -690,7 +726,7 @@
                     } 
                     else if (pauseActionState === 1) {
                         if (Date.now() - pauseActionTime > 3000) {
-                            const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                            const playBtn = findPlayButton(iframeDoc);
                             updateStatus(t('pressPlay'), 'active');
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
@@ -723,7 +759,7 @@
                         const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
                         if (wait <= 0) {
                             updateStatus(t('repeatPlay'), 'active');
-                            const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                            const playBtn = findPlayButton(iframeDoc);
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
                             video.play().catch(() => {});
@@ -746,7 +782,7 @@
                     const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
                     if (secPassed > 20) {
                         updateStatus(t('buffering'), 'error');
-                        const playBtn = /** @type {HTMLElement|null} */ (iframeDoc.querySelector('.plyr__control--overlaid, [data-plyr="play"]'));
+                        const playBtn = findPlayButton(iframeDoc);
                         if (playBtn) clickElement(playBtn);
                         else clickElement(video);
                         video.play().catch(() => {});
