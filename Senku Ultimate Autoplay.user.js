@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.4.0
+// @version      3.5.0
 // @description  Автозапуск, нативный переход, умная очередь, фикс паузы, контроль скорости
 // @author       mikuro
 // @match        *://senku.one/*
@@ -80,8 +80,20 @@
     let queue = [];
     try {
         const saved = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-        queue = saved.map(item => typeof item === 'string' ? { url: item, title: t('loading'), image: '', startEp: 1, totalEps: '?' } : item);
+        if (Array.isArray(saved)) {
+            queue = saved
+                .filter(item => item && typeof item === 'object')
+                .map(item => {
+                    const url = String(item.url || item);
+                    const title = String(item.title || '');
+                    const image = String(item.image || '');
+                    const startEp = parseInt(item.startEp, 10) || 1;
+                    const totalEps = item.totalEps || '?';
+                    return { url, title, image, startEp, totalEps };
+                });
+        }
     } catch(e) {}
+
 
     // --- 1. СТИЛИ ---
     if (!document.getElementById('senku-font')) {
@@ -383,38 +395,71 @@
 
     function renderQueue() {
         queueList.innerHTML = '';
-        if (queue.length === 0) { 
-            queueList.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;">${t('queueEmpty')}</div>`; 
-            return; 
+        if (queue.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.style.cssText = 'text-align:center; color:rgba(255,255,255,0.4); font-size:10px; padding:10px;';
+            emptyDiv.textContent = t('queueEmpty');
+            queueList.appendChild(emptyDiv);
+            return;
         }
-        
+
         queue.forEach((item, index) => {
             const el = document.createElement('div');
             el.className = 'senku-queue-item';
-            
+
             const epText = `${t('episode')} ${item.startEp || 1}` + (item.totalEps && item.totalEps !== '?' ? ` (${t('total')}: ${item.totalEps})` : '');
 
-            el.innerHTML = `
-                <img class="senku-queue-img" src="${item.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}" alt="poster">
-                <div class="senku-queue-info">
-                    <div class="senku-queue-title" title="${item.title}">${index + 1}. ${item.title}</div>
-                    <div class="senku-queue-ep">${epText}</div>
-                </div>
-                <div class="senku-queue-controls">
-                    <button class="senku-queue-btn up" ${index === 0 ? 'disabled style="opacity:0.2"' : ''}>▲</button>
-                    <button class="senku-queue-btn down" ${index === queue.length - 1 ? 'disabled style="opacity:0.2"' : ''}>▼</button>
-                    <button class="senku-queue-btn delete">🗑</button>
-                </div>
-            `;
-            
-            const upBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.up'));
-            const downBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.down'));
-            const delBtn = /** @type {HTMLButtonElement} */ (el.querySelector('.delete'));
+            const img = document.createElement('img');
+            img.className = 'senku-queue-img';
+            img.src = item.image && typeof item.image === 'string' && (item.image.startsWith('http://') || item.image.startsWith('https://'))
+                ? item.image
+                : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            img.alt = 'poster';
+
+            const info = document.createElement('div');
+            info.className = 'senku-queue-info';
+
+            const title = document.createElement('div');
+            title.className = 'senku-queue-title';
+            title.title = String(item.title || '');
+            title.textContent = `${index + 1}. ${String(item.title || '')}`;
+
+            const ep = document.createElement('div');
+            ep.className = 'senku-queue-ep';
+            ep.textContent = epText;
+
+            info.appendChild(title);
+            info.appendChild(ep);
+
+            const controls = document.createElement('div');
+            controls.className = 'senku-queue-controls';
+
+            const upBtn = document.createElement('button');
+            upBtn.className = 'senku-queue-btn up';
+            upBtn.textContent = '▲';
+            if (index === 0) { upBtn.disabled = true; upBtn.style.opacity = '0.2'; }
+
+            const downBtn = document.createElement('button');
+            downBtn.className = 'senku-queue-btn down';
+            downBtn.textContent = '▼';
+            if (index === queue.length - 1) { downBtn.disabled = true; downBtn.style.opacity = '0.2'; }
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'senku-queue-btn delete';
+            delBtn.textContent = '🗑';
 
             upBtn.addEventListener('click', () => { if (index > 0) { [queue[index - 1], queue[index]] = [queue[index], queue[index - 1]]; saveQueue(); } });
             downBtn.addEventListener('click', () => { if (index < queue.length - 1) { [queue[index + 1], queue[index]] = [queue[index], queue[index + 1]]; saveQueue(); } });
             delBtn.addEventListener('click', () => { queue.splice(index, 1); saveQueue(); });
-            
+
+            controls.appendChild(upBtn);
+            controls.appendChild(downBtn);
+            controls.appendChild(delBtn);
+
+            el.appendChild(img);
+            el.appendChild(info);
+            el.appendChild(controls);
+
             queueList.appendChild(el);
         });
     }
@@ -443,7 +488,14 @@
 
     const resetBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-reset'));
     resetBtn.addEventListener('click', () => {
-        if (confirm(t('resetConfirm'))) { localStorage.clear(); location.reload(); }
+        if (confirm(t('resetConfirm'))) {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(VOLUME_KEY);
+            localStorage.removeItem(QUEUE_KEY);
+            localStorage.removeItem(PANEL_OPEN_KEY);
+            localStorage.removeItem(SPEED_KEY);
+            location.reload();
+        }
     });
 
     const clearBtn = /** @type {HTMLButtonElement} */ (queueModal.querySelector('#senku-queue-clear'));
@@ -530,19 +582,18 @@
         return /** @type {HTMLElement|null} */ (doc.querySelector('.plyr__control--overlaid, [data-plyr="play"], button[aria-label="Смотреть"]'));
     }
 
-    // НОВАЯ ФУНКЦИЯ: Поиск нативной кнопки "Следующая серия"
     function findNativeNextButton() {
-        // Ищем все кнопки на странице (включая внутри iframe, если есть доступ)
         const player = findPlayer();
         const doc = player ? player.doc : document;
 
         const potentialBtns = Array.from(doc.querySelectorAll('button, a, div[role="button"], .vjs-next-button'));
-        
+
         for (let btn of potentialBtns) {
-            const text = (btn.textContent || '').toLowerCase();
-            // Проверяем текст на наличие фразы и видимость элемента
-            if ((text.includes('следующая серия') || text.includes('новая серия')) && 
-                (btn.offsetParent !== null || doc.defaultView?.getComputedStyle(btn).display !== 'none')) {
+            const text = (btn.textContent || '').toLowerCase().trim();
+            const isVisible = btn.offsetParent !== null || (doc.defaultView && doc.defaultView.getComputedStyle(btn).display !== 'none');
+
+            if ((text.includes('следующая серия') || text.includes('новая серия') ||
+                 text.includes('next episode') || text.includes('next')) && isVisible) {
                 return btn;
             }
         }
@@ -684,12 +735,14 @@
     let isProcessing = false;
     let lastVideoEl = null;
     let lastEpisodeKey = '';
-    let pauseActionState = 0; 
+    let pauseActionState = 0;
     let pauseActionTime = 0;
+    let lastTransitionAttempt = 0;
+    let transitionInProgress = false;
 
     function updateStatus(text, type = 'normal') {
         if (!statusText) return;
-        statusText.innerText = text; 
+        statusText.innerText = text;
         statusText.className = '';
         if (type === 'error') statusText.classList.add('error');
         else if (type === 'active') statusText.classList.add('active');
@@ -729,10 +782,10 @@
     setInterval(() => {
         if (localStorage.getItem(STORAGE_KEY) === 'false') return;
         if (!onWatchPage()) return;
-        
+
         const player = findPlayer();
         if (!player) {
-            updateStatus(t('searching'), 'error'); 
+            updateStatus(t('searching'), 'error');
             return;
         }
 
@@ -744,19 +797,20 @@
 
             applyPauseFix(video);
             applyVolumeSync(video);
-            applySpeed(video); 
+            applySpeed(video);
 
             const episodeKey = `${animeId}:${currentEp}`;
             if (video !== lastVideoEl || episodeKey !== lastEpisodeKey) {
                 lastVideoEl = video;
                 lastEpisodeKey = episodeKey;
                 if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-                isProcessing = false;  
-                lastTime = 0; 
-                pauseActionState = 0; 
+                transitionInProgress = false;
+                lastTime = 0;
+                pauseActionState = 0;
                 pauseActionTime = 0;
-                
-                applySpeed(video); 
+                hasStartedCurrentVideo = false;
+
+                applySpeed(video);
             }
 
             if (video.currentTime > 2) {
@@ -774,24 +828,26 @@
 
             // ЛОГИКА ОКОНЧАНИЯ ВИДЕО
             if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 1.5)) {
-                if (isProcessing) return;
-                isProcessing = true;
-                
+                if (transitionInProgress) return;
+                transitionInProgress = true;
+                lastTransitionAttempt = Date.now();
+
                 // 1. ПРИОРИТЕТ: Нативная кнопка "Следующая серия" от плеера
                 const nativeBtn = findNativeNextButton();
                 if (nativeBtn) {
                     updateStatus(`Нативная кнопка`, 'active');
                     clickElement(nativeBtn);
-                    setTimeout(() => { isProcessing = false; }, 5000); 
+                    setTimeout(() => { transitionInProgress = false; }, 8000);
                     return;
                 }
 
                 // 2. ПРИОРИТЕТ: Клик по серии в боковом меню
                 const nextLink = findEpisodeLink(currentEp + 1);
-                
+
                 if (nextLink) {
                     updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
                     openEpisode(nextLink, currentEp);
+                    setTimeout(() => { transitionInProgress = false; }, 8000);
                 } else {
                     // 3. ПРИОРИТЕТ: Очередь
                     const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
@@ -801,6 +857,7 @@
                     if (nextCard) {
                         updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
                         clickElement(nextCard);
+                        setTimeout(() => { transitionInProgress = false; }, 8000);
                     } else if (queue.length > 0) {
                         const nextItem = queue.shift();
                         if (nextItem) {
@@ -810,22 +867,22 @@
                         }
                     } else {
                         updateStatus(t('endSeason'), 'error');
+                        setTimeout(() => { transitionInProgress = false; }, 5000);
                     }
                 }
-                setTimeout(() => { isProcessing = false; }, 5000); 
                 return;
             }
 
             if (video.paused && !video.ended) {
                 if (hasStartedCurrentVideo) {
                     updateStatus(`${t('pause')} (${currentEp}/${totalEps})`, 'normal');
-                    pauseActionState = 0; 
+                    pauseActionState = 0;
                     pauseActionTime = 0;
                 } else {
                     if (pauseActionState === 0) {
                         const resumeBtn = findResumeButton(iframeDoc);
-                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || iframeDoc.defaultView?.getComputedStyle(resumeBtn).display !== 'none');
-                        
+                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || (iframeDoc.defaultView && iframeDoc.defaultView.getComputedStyle(resumeBtn).display !== 'none'));
+
                         if (isResumeVisible && resumeBtn) {
                             const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
                             updateStatus(`${t('resume')}: ${timeMatch ? timeMatch[0] : ''}`, 'active');
@@ -837,19 +894,19 @@
                             const playBtn = findPlayButton(iframeDoc);
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
-                            
+
                             tryPlay(video);
                             pauseActionState = 1;
                             pauseActionTime = Date.now();
                         }
-                    } 
+                    }
                     else if (pauseActionState === 1) {
                         if (Date.now() - pauseActionTime > 3000) {
                             const playBtn = findPlayButton(iframeDoc);
                             updateStatus(t('kickVideo'), 'active');
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
-                            
+
                             tryPlay(video);
                             pauseActionState = 2;
                             pauseActionTime = Date.now();
@@ -876,7 +933,7 @@
                             if (playBtn) clickElement(playBtn);
                             else clickElement(video);
                             tryPlay(video);
-                            pauseActionState = 2; 
+                            pauseActionState = 2;
                             pauseActionTime = Date.now();
                         } else {
                             updateStatus(`${t('waiting')} ${wait}c...`, 'error');
@@ -884,15 +941,15 @@
                     }
                 }
             } else {
-                pauseActionState = 0; 
-                pauseActionTime = 0; 
-                
+                pauseActionState = 0;
+                pauseActionTime = 0;
+
                 if (video.currentTime > 0 && !needsUserClickToPlay) {
                     updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
                 }
-                
+
                 if (Math.abs(video.currentTime - lastTime) < 0.1) {
-                    if (pauseActionTime === 0) pauseActionTime = Date.now(); 
+                    if (pauseActionTime === 0) pauseActionTime = Date.now();
                     const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
                     if (secPassed > 20) {
                         updateStatus(t('buffering'), 'error');
@@ -911,5 +968,7 @@
         } catch (e) {
             logError('Main automation loop', /** @type {Error} */(e));
         }
-    }, 1000); 
+    }, 1000);
 })();
+
+
