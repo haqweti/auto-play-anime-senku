@@ -33,7 +33,7 @@
 </p>
 
 <p align="center">
-  <img width="100%" alt="Senku Ultimate Autoplay Banner" src="https://github.com/user-attachments/assets/8f4fb13b-f0e9-410d-806b-f26ef78f447a" style="border-radius: 16px;" />
+ <img width="1906" height="829" alt="{29C64B24-C1E2-410D-9906-B39F2BE69338}" src="https://github.com/user-attachments/assets/2ca6c623-4590-4f43-94c1-0900707e7e2b" />
 </p>
 
 > [!IMPORTANT]
