@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.5.0
-// @description  Автозапуск, нативный переход, умная очередь, фикс паузы, контроль скорости
+// @version      3.6.0
+// @description  Автозапуск, нативный переход, умная очередь, авто-восстановление после обрыва сети и сна, контроль скорости
 // @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -28,22 +28,24 @@
             add: 'Доб.', clear: 'Очистить всё', reset: 'Сбросить плагин', linkPlaceholder: 'Ссылка на /anime/... или /watch/...',
             pause: 'Пауза', loading: 'Загрузка...', error: 'Ошибка (см. консоль)', queueEmpty: 'Очередь пуста',
             clickSite: 'Кликни по сайту!', endSeason: 'Конец сезона/очереди', nextEp: 'Включаю', transition: 'Переход',
-            resume: 'Продолжаю', pressPlay: 'Жму Play...', kickVideo: 'Пинаю видео...', repeatPlay: 'Повторный Play...',
-            buffering: 'Буферизация, пихаю!', waitingStart: 'Ожидание старта...', total: 'Всего', episode: 'Серия',
+            resume: 'Продолжаю', pressPlay: 'Жму Play...', waitingStart: 'Ожидание старта...', total: 'Всего', episode: 'Серия',
             startedClick: 'Запущено кликом!', invalidLink: 'Некорректная ссылка!', errorLoading: 'Ошибка загрузки',
             resetConfirm: 'Сбросить все настройки плагина?', clearConfirm: 'Очистить всю очередь?',
-            animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость'
+            animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость',
+            reconnecting: 'Переподключение', noNet: 'Нет сети, жду...', checkingNet: 'Проверка сети...',
+            recovering: 'Восстановление', nativeNext: 'Нативная кнопка'
         },
         en: {
             waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
             add: 'Add', clear: 'Clear all', reset: 'Reset plugin', linkPlaceholder: 'Link to /anime/... or /watch/...',
             pause: 'Paused', loading: 'Loading...', error: 'Error (check console)', queueEmpty: 'Queue is empty',
             clickSite: 'Click on the site!', endSeason: 'End of season/queue', nextEp: 'Playing', transition: 'Transition to',
-            resume: 'Resuming', pressPlay: 'Pressing Play...', kickVideo: 'Kicking video...', repeatPlay: 'Repeat Play...',
-            buffering: 'Buffering, kicking!', waitingStart: 'Waiting for start...', total: 'Total', episode: 'Episode',
+            resume: 'Resuming', pressPlay: 'Pressing Play...', waitingStart: 'Waiting for start...', total: 'Total', episode: 'Episode',
             startedClick: 'Started by click!', invalidLink: 'Invalid link!', errorLoading: 'Loading error',
             resetConfirm: 'Reset all plugin settings?', clearConfirm: 'Clear the entire queue?',
-            animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed'
+            animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed',
+            reconnecting: 'Reconnecting', noNet: 'No network, waiting...', checkingNet: 'Checking network...',
+            recovering: 'Recovering', nativeNext: 'Native next button'
         }
     };
     const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
@@ -51,13 +53,31 @@
     const STORAGE_KEY = 'senku_autonext_enabled';
     const VOLUME_KEY = 'senku_autonext_volume';
     const QUEUE_KEY = 'senku_autonext_queue';
-    const PANEL_OPEN_KEY = 'senku_panel_open'; 
-    const SPEED_KEY = 'senku_autonext_speed'; 
-    
-    let needsUserClickToPlay = false; 
+    const PANEL_OPEN_KEY = 'senku_panel_open';
+    const SPEED_KEY = 'senku_autonext_speed';
+
+    // Сколько секунд без прогресса считаем зависанием
+    const STALL_MS = 6000;
+    // Если пауза произошла в течение этого окна после действия пользователя — пауза пользовательская
+    const USER_ACTION_WINDOW = 1500;
+
+    let needsUserClickToPlay = false;
     let userInteracted = false;
     let heartbeatTimer = null;
-    let hasStartedCurrentVideo = false; 
+
+    // --- состояние восстановления ---
+    let wantPlaying = false;        // true = пользователь хочет смотреть (пауза не его)
+    let lastUserActionAt = 0;       // время последнего действия пользователя
+    let lastProgressAt = 0;         // когда последний раз видео реально продвинулось
+    let recoverAttempts = 0;        // номер текущей попытки восстановления
+    let nextRecoverAt = 0;          // когда можно делать следующую попытку
+    let recovering = false;         // идёт ли асинхронная попытка
+    let lastTime = 0;
+    let lastVideoEl = null;
+    let lastEpisodeKey = '';
+    let transitionInProgress = false;
+    let hasStartedCurrentVideo = false;
+    const hookedDocs = new WeakSet();
 
     function logError(context, error) {
         console.error(`\n🛑🛑🛑 [SENKU SKIP ERROR] 🛑🛑🛑\nContext: ${context}\nError: ${error.message || error}\nStack:`, error.stack || 'No stack');
@@ -68,7 +88,7 @@
     }
 
     if (localStorage.getItem(STORAGE_KEY) === null) localStorage.setItem(STORAGE_KEY, 'true');
-    
+
     let savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) || '1.0');
     if (isNaN(savedVolume)) savedVolume = 1.0;
 
@@ -92,8 +112,7 @@
                     return { url, title, image, startEp, totalEps };
                 });
         }
-    } catch(e) {}
-
+    } catch (e) {}
 
     // --- 1. СТИЛИ ---
     if (!document.getElementById('senku-font')) {
@@ -106,22 +125,22 @@
 
     const style = document.createElement('style');
     style.textContent = `
-        #senku-autonext-panel { 
-            position: fixed !important; top: 15px !important; right: 15px !important; left: auto !important; bottom: auto !important; 
+        #senku-autonext-panel {
+            position: fixed !important; top: 15px !important; right: 15px !important; left: auto !important; bottom: auto !important;
             background: rgba(15, 15, 15, 0.95) !important; backdrop-filter: blur(15px) !important; -webkit-backdrop-filter: blur(15px) !important;
             color: #fff !important; padding: 6px 10px !important; border-radius: 12px !important;
-            z-index: 2147483647 !important; font-family: "Unbounded", system-ui, sans-serif !important; 
-            font-size: 11px !important; font-weight: 600 !important; display: flex !important; 
-            flex-direction: row-reverse !important; align-items: center !important; 
+            z-index: 2147483647 !important; font-family: "Unbounded", system-ui, sans-serif !important;
+            font-size: 11px !important; font-weight: 600 !important; display: flex !important;
+            flex-direction: row-reverse !important; align-items: center !important;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important; border: 1px solid rgba(255,255,255,0.08) !important;
-            height: 40px !important; box-sizing: border-box !important; 
+            height: 40px !important; box-sizing: border-box !important;
             transition: box-shadow 0.3s, border-color 0.3s !important; pointer-events: auto !important; user-select: none; overflow: hidden;
         }
         #senku-autonext-panel:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7) !important; border-color: rgba(255,255,255,0.15) !important; }
 
         #senku-trigger-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; cursor: pointer; transition: background 0.2s; }
         #senku-trigger-btn:hover { background: rgba(255,255,255,0.1); }
-        
+
         .senku-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s, transform 0.3s; cursor: pointer; flex-shrink: 0; }
         #senku-trigger-btn:hover .senku-icon { opacity: 1; stroke: #ff3b47; }
         #senku-autonext-panel.collapsed #senku-trigger-btn .senku-icon { transform: rotate(180deg); }
@@ -145,9 +164,9 @@
         #senku-volume-slider { -webkit-appearance: none; width: 60px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.22); outline: none; cursor: pointer; background-image: linear-gradient(#ff3b47, #ff3b47); background-size: 100% 100%; background-repeat: no-repeat; flex-shrink: 0; }
         #senku-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #fff; cursor: pointer; box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); transition: transform 0.1s; }
         #senku-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
-        
+
         .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
-        
+
         .senku-speed-btn {
             background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border: 1px solid transparent;
             border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 11px; font-weight: 600;
@@ -157,14 +176,14 @@
 
         .senku-queue-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; margin-left: 4px;}
         .senku-queue-icon:hover { opacity: 1; stroke: #ff3b47; }
-        
-        #senku-queue-modal { 
+
+        #senku-queue-modal {
             position: fixed !important; top: 65px !important; right: 15px !important; left: auto !important;
             transform: translateY(-10px) !important; opacity: 0; pointer-events: none;
-            background: rgba(15, 15, 15, 0.98) !important; backdrop-filter: blur(25px) saturate(150%) !important; 
-            border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 16px !important; padding: 20px !important; 
-            z-index: 2147483646 !important; color: #fff !important; font-family: "Unbounded", system-ui, sans-serif !important; 
-            font-size: 12px !important; width: 420px !important; max-width: 90vw !important; max-height: calc(100vh - 85px) !important; 
+            background: rgba(15, 15, 15, 0.98) !important; backdrop-filter: blur(25px) saturate(150%) !important;
+            border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 16px !important; padding: 20px !important;
+            z-index: 2147483646 !important; color: #fff !important; font-family: "Unbounded", system-ui, sans-serif !important;
+            font-size: 12px !important; width: 420px !important; max-width: 90vw !important; max-height: calc(100vh - 85px) !important;
             display: flex !important; flex-direction: column !important; gap: 15px !important; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
             transition: opacity 0.3s ease, transform 0.3s ease !important;
         }
@@ -226,7 +245,7 @@
     volIcon.setAttribute('class', 'senku-vol-icon');
     volIcon.setAttribute('viewBox', '0 0 24 24');
     volIcon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>';
-    
+
     const volSlider = document.createElement('input');
     volSlider.type = 'range';
     volSlider.id = 'senku-volume-slider';
@@ -239,7 +258,7 @@
         savedVolume = parseFloat(target.value);
         target.style.backgroundSize = `${savedVolume * 100}% 100%`;
         localStorage.setItem(VOLUME_KEY, String(savedVolume));
-        
+
         const player = findPlayer();
         const video = player ? player.video : null;
         if (video) {
@@ -257,7 +276,7 @@
     const speedBtn = document.createElement('button');
     speedBtn.className = 'senku-speed-btn';
     speedBtn.title = t('speed');
-    
+
     function updateSpeedBtnText() {
         speedBtn.innerText = savedSpeed === 1 ? '1x' : `${savedSpeed}x`;
     }
@@ -270,7 +289,7 @@
         savedSpeed = SPEEDS[idx];
         localStorage.setItem(SPEED_KEY, String(savedSpeed));
         updateSpeedBtnText();
-        
+
         const player = findPlayer();
         if (player && player.video) {
             player.video.playbackRate = savedSpeed;
@@ -282,7 +301,7 @@
     iconQueue.setAttribute('viewBox', '0 0 24 24');
     iconQueue.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>';
     iconQueue.title = t('queue');
-    
+
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'senku-toggle';
 
@@ -304,11 +323,11 @@
         updateButtonState();
     });
 
-    contentWrap.appendChild(statusText); 
+    contentWrap.appendChild(statusText);
     contentWrap.appendChild(divider);
-    contentWrap.appendChild(volContainer); 
-    contentWrap.appendChild(speedBtn); 
-    contentWrap.appendChild(iconQueue); 
+    contentWrap.appendChild(volContainer);
+    contentWrap.appendChild(speedBtn);
+    contentWrap.appendChild(iconQueue);
     contentWrap.appendChild(toggleBtn);
 
     panel.appendChild(triggerBtn);
@@ -359,7 +378,7 @@
         let finalUrl = originalUrl;
         if (id) {
             finalUrl = `${window.location.origin}/watch/${id}?episode=${startEp}&season=1`;
-            
+
             try {
                 const res = await fetch(`${window.location.origin}/anime/${id}`);
                 const text = await res.text();
@@ -374,11 +393,9 @@
                     if (ogTitle) title = ogTitle.getAttribute('content') || title;
                 }
 
-                const pageText = doc.body.textContent || "";
+                const pageText = doc.body.textContent || '';
                 const totalMatch = pageText.match(/Серии\s*(\d+)/i) || pageText.match(/Серий:\s*(\d+)/i) || pageText.match(/Эпизодов:\s*(\d+)/i);
-                if (totalMatch) {
-                    totalEps = parseInt(totalMatch[1], 10);
-                }
+                if (totalMatch) totalEps = parseInt(totalMatch[1], 10);
 
                 const ogImage = doc.querySelector('meta[property="og:image"]');
                 if (ogImage) image = ogImage.getAttribute('content') || image;
@@ -470,12 +487,12 @@
         if (!rawUrl) return;
         if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
         try {
-            new URL(rawUrl); 
+            new URL(rawUrl);
             queueInput.value = '';
             const newItem = { url: rawUrl, title: t('loading'), image: '', startEp: 1, totalEps: '?' };
-            queue.push(newItem); 
+            queue.push(newItem);
             saveQueue();
-            
+
             fetchAnimeInfo(rawUrl).then(info => {
                 const idx = queue.indexOf(newItem);
                 if (idx !== -1) {
@@ -505,7 +522,7 @@
 
     renderQueue();
 
-    // --- 5. ДОБАВЛЕНИЕ НА СТРАНИЦУ И КЛИК ---
+    // --- 5. ДОБАВЛЕНИЕ НА СТРАНИЦУ ---
     function addPanel() {
         if (!onWatchPage()) {
             if (panel.isConnected) panel.remove();
@@ -525,7 +542,7 @@
         localStorage.setItem(PANEL_OPEN_KEY, String(isNowOpen));
     });
 
-    // --- 6. УМНЫЙ ПОИСК ПЛЕЕРА И СЕРИЙ ---
+    // --- 6. ПОИСК ПЛЕЕРА И СЕРИЙ ---
     function parseWatchHref(href) {
         try {
             const u = new URL(href, window.location.origin);
@@ -553,7 +570,7 @@
 
         const video = document.querySelector('video');
         if (video) return { frame: null, doc: document, video };
-        
+
         return null;
     }
 
@@ -571,6 +588,10 @@
         return fromPage ? fromPage.ep : 1;
     }
 
+    function isVisible(el, doc) {
+        return el.offsetParent !== null || (!!doc.defaultView && doc.defaultView.getComputedStyle(el).display !== 'none');
+    }
+
     function findResumeButton(doc) {
         const old = /** @type {HTMLElement|null} */ (doc.querySelector('.resume-continue'));
         if (old) return old;
@@ -582,20 +603,16 @@
         return /** @type {HTMLElement|null} */ (doc.querySelector('.plyr__control--overlaid, [data-plyr="play"], button[aria-label="Смотреть"]'));
     }
 
-    function findNativeNextButton() {
-        const player = findPlayer();
+    function findNativeNextButton(player) {
         const doc = player ? player.doc : document;
+        const candidates = Array.from(doc.querySelectorAll('button, a, div[role="button"], .vjs-next-button'));
 
-        const potentialBtns = Array.from(doc.querySelectorAll('button, a, div[role="button"], .vjs-next-button'));
-
-        for (let btn of potentialBtns) {
-            const text = (btn.textContent || '').toLowerCase().trim();
-            const isVisible = btn.offsetParent !== null || (doc.defaultView && doc.defaultView.getComputedStyle(btn).display !== 'none');
-
-            if ((text.includes('следующая серия') || text.includes('новая серия') ||
-                 text.includes('next episode') || text.includes('next')) && isVisible) {
-                return btn;
-            }
+        for (const btn of candidates) {
+            const text = (btn.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            // Узкий фильтр: короткие подписи, чтобы не нажать что-то лишнее
+            if (text.length === 0 || text.length > 40) continue;
+            if (!/следующая серия|новая серия|next episode/.test(text)) continue;
+            if (isVisible(/** @type {HTMLElement} */ (btn), doc)) return btn;
         }
         return null;
     }
@@ -635,7 +652,7 @@
         }, 3000);
     }
 
-    // --- 7. API HEARTBEAT И АВТОМАТИЗАЦИЯ ---
+    // --- 7. HEARTBEAT ---
     function getAnimeId() {
         const match = window.location.pathname.match(/\/watch\/(\d+)/);
         return match ? match[1] : '';
@@ -650,11 +667,11 @@
                 body: JSON.stringify({
                     anime_id: animeId,
                     episode: episode,
-                    time: Math.floor(video.currentTime),
-                    duration: Math.floor(video.duration)
+                    time: Math.floor(video.currentTime) || 0,
+                    duration: Number.isFinite(video.duration) ? Math.floor(video.duration) : 0
                 })
             });
-            if (res.status === 401) return; 
+            if (res.status === 401) return;
         } catch (e) {}
     }
 
@@ -664,18 +681,53 @@
         heartbeatTimer = setInterval(() => sendHeartbeat(video, animeId, episode), 15000);
     }
 
+    function stopHeartbeat() {
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+    }
+
+    // --- 8. ОТСЛЕЖИВАНИЕ ДЕЙСТВИЙ ПОЛЬЗОВАТЕЛЯ И СОБЫТИЙ ВИДЕО ---
+    function markUserAction() {
+        lastUserActionAt = Date.now();
+    }
+
+    function hookUserActions(doc) {
+        if (!doc || hookedDocs.has(doc)) return;
+        hookedDocs.add(doc);
+        ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
+            doc.addEventListener(ev, markUserAction, { capture: true, passive: true })
+        );
+    }
+
+    /**
+     * Пауза считается пользовательской, если она случилась сразу после действия
+     * пользователя. Всё остальное (сон ноутбука, обрыв сети, сбой плеера) — не его пауза,
+     * и скрипт будет пытаться продолжить воспроизведение.
+     */
+    function hookVideo(video) {
+        if (video.dataset.senkuHooked === 'true') return;
+        video.dataset.senkuHooked = 'true';
+
+        video.addEventListener('play', () => { wantPlaying = true; });
+        video.addEventListener('playing', () => { wantPlaying = true; });
+        video.addEventListener('pause', () => {
+            if (video.ended || video.seeking) return;
+            if (Date.now() - lastUserActionAt < USER_ACTION_WINDOW) wantPlaying = false;
+        });
+        video.addEventListener('ended', () => { wantPlaying = false; });
+    }
+
     function applyPauseFix(video) {
         if (video.dataset.senkuPauseFixed) return;
         video.dataset.senkuPauseFixed = 'true';
 
         let lastValidTime = 0;
-        
+
         video.addEventListener('timeupdate', () => {
             if (!video.paused) lastValidTime = video.currentTime;
         });
 
         video.addEventListener('pause', () => {
-            if (lastValidTime > 1) {
+            if (lastValidTime > 1 && !video.ended) {
                 const timeToRestore = lastValidTime;
                 const restore = () => {
                     if (video.paused && video.currentTime < 1) {
@@ -695,7 +747,7 @@
 
         video.addEventListener('volumechange', () => {
             if (video.dataset.senkuProgrammaticVol === 'true') return;
-            
+
             const currentVol = video.muted ? 0 : video.volume;
             if (Math.abs(currentVol - savedVolume) > 0.05) {
                 savedVolume = currentVol;
@@ -714,7 +766,7 @@
 
     function tryPlay(video) {
         if (!video) return;
-        
+
         const playPromise = video.play();
         if (playPromise !== undefined) {
             playPromise.catch((error) => {
@@ -730,15 +782,6 @@
             });
         }
     }
-
-    let lastTime = 0;
-    let isProcessing = false;
-    let lastVideoEl = null;
-    let lastEpisodeKey = '';
-    let pauseActionState = 0;
-    let pauseActionTime = 0;
-    let lastTransitionAttempt = 0;
-    let transitionInProgress = false;
 
     function updateStatus(text, type = 'normal') {
         if (!statusText) return;
@@ -757,29 +800,203 @@
 
     document.addEventListener('click', () => {
         userInteracted = true;
+        markUserAction();
         if (!needsUserClickToPlay) return;
         needsUserClickToPlay = false;
-        
+
         const player = findPlayer();
         if (!player) return;
         try {
             const video = player.video;
             if (video) {
-                if (video.paused) {
-                    video.play().catch(() => {}); 
-                }
+                if (video.paused) video.play().catch(() => {});
                 if (video.muted) {
                     video.dataset.senkuProgrammaticVol = 'true';
                     video.muted = false;
                     video.volume = savedVolume;
                     video.dataset.senkuProgrammaticVol = 'false';
                 }
-                updateStatus(`▶️ ${t('startedClick')}`, 'active'); 
+                updateStatus(`▶️ ${t('startedClick')}`, 'active');
             }
-        } catch(e) {}
+        } catch (e) {}
     }, { capture: true });
 
-    setInterval(() => {
+    // --- 9. ПРОВЕРКА СЕТИ И ВОССТАНОВЛЕНИЕ ---
+
+    /**
+     * Пинг соединения: сначала адрес видео (если он не blob), затем сайт.
+     * Запрос no-cors, поэтому ответ может быть непрозрачным — главное, что он дошёл.
+     */
+    async function probeNetwork(video) {
+        if (!navigator.onLine) return false;
+
+        const urls = [`${window.location.origin}/favicon.ico`];
+        if (video && video.currentSrc && !video.currentSrc.startsWith('blob:')) {
+            urls.unshift(video.currentSrc);
+        }
+
+        for (const base of urls) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4000);
+            try {
+                const sep = base.includes('?') ? '&' : '?';
+                await fetch(`${base}${sep}_=${Date.now()}`, {
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                clearTimeout(timer);
+                return true;
+            } catch (e) {
+                clearTimeout(timer);
+            }
+        }
+        return false;
+    }
+
+    /** Перезапуск источника: перезагрузка iframe плеера либо load() для нативного видео */
+    function reloadSource(player) {
+        const { video, frame } = player;
+        if (frame && frame.src) {
+            frame.src = frame.src;
+            return;
+        }
+        const resumeAt = video.currentTime;
+        video.addEventListener('loadedmetadata', () => {
+            try { video.currentTime = resumeAt; } catch (e) {}
+            tryPlay(video);
+        }, { once: true });
+        video.load();
+    }
+
+    async function recover(player) {
+        recovering = true;
+        const { video, doc } = player;
+        try {
+            updateStatus(t('checkingNet'), 'error');
+            const online = await probeNetwork(video);
+
+            if (!online) {
+                updateStatus(t('noNet'), 'error');
+                nextRecoverAt = Date.now() + 2000;
+                return;
+            }
+
+            recoverAttempts++;
+            const n = recoverAttempts;
+            updateStatus(`${t('recovering')} #${n}`, 'active');
+
+            // Жёсткий перезапуск: ошибка медиа или каждые 3 неудачные попытки после четвёртой
+            if (video.error || (n >= 4 && n % 3 === 0)) {
+                reloadSource(player);
+                nextRecoverAt = Date.now() + 12000;
+                return;
+            }
+
+            if (video.paused) {
+                // Сначала "Продолжить с", если плеер его показал, иначе кнопка Play
+                const resumeBtn = findResumeButton(doc);
+                if (resumeBtn && isVisible(resumeBtn, doc)) {
+                    clickElement(resumeBtn);
+                } else {
+                    const playBtn = findPlayButton(doc);
+                    if (playBtn) clickElement(playBtn);
+                }
+                tryPlay(video);
+            } else {
+                // Играет, но данные не идут: небольшой сдвиг заставляет браузер заново запросить буфер
+                try { video.currentTime = Math.max(0, video.currentTime - 0.05); } catch (e) {}
+            }
+
+            nextRecoverAt = Date.now() + Math.min(2500 + n * 1000, 10000);
+        } catch (e) {
+            logError('Recovery', /** @type {Error} */ (e));
+            nextRecoverAt = Date.now() + 3000;
+        } finally {
+            recovering = false;
+        }
+    }
+
+    // Возврат сети, пробуждение экрана и фокус — сразу пробуем восстановиться
+    window.addEventListener('online', () => { nextRecoverAt = 0; });
+    window.addEventListener('offline', () => updateStatus(t('noNet'), 'error'));
+    window.addEventListener('focus', () => { nextRecoverAt = 0; });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) nextRecoverAt = 0;
+    });
+
+    // --- 10. КОНЕЦ СЕРИИ ---
+    function unlockTransition(ms) {
+        setTimeout(() => { transitionInProgress = false; }, ms);
+    }
+
+    function handleEnded(player, currentEp) {
+        if (transitionInProgress) return;
+        transitionInProgress = true;
+
+        // 1. Нативная кнопка "Следующая серия"
+        const nativeBtn = findNativeNextButton(player);
+        if (nativeBtn) {
+            updateStatus(t('nativeNext'), 'active');
+            clickElement(nativeBtn);
+            unlockTransition(8000);
+            return;
+        }
+
+        // 2. Серия в боковом меню
+        const nextLink = findEpisodeLink(currentEp + 1);
+        if (nextLink) {
+            updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
+            openEpisode(nextLink, currentEp);
+            unlockTransition(8000);
+            return;
+        }
+
+        // 3. Карточка "Сейчас смотришь" и следующая за ней
+        const activeMarkers = Array.from(document.querySelectorAll('span, div, p'))
+            .filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
+        const card = activeMarkers.length > 0
+            ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement)
+            : null;
+        const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
+
+        if (nextCard) {
+            updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
+            clickElement(nextCard);
+            unlockTransition(8000);
+            return;
+        }
+
+        // 4. Очередь
+        if (queue.length > 0) {
+            const nextItem = queue.shift();
+            if (nextItem) {
+                saveQueue();
+                updateStatus(`${t('transition')}: ${nextItem.title}`, 'active');
+                setTimeout(() => { window.location.href = nextItem.url; }, 1500);
+            }
+            return;
+        }
+
+        // 5. Всё закончилось
+        updateStatus(t('endSeason'), 'error');
+        unlockTransition(5000);
+    }
+
+    // --- 11. ГЛАВНЫЙ ЦИКЛ ---
+    function resetEpisodeState() {
+        wantPlaying = true;          // на новой серии хотим автозапуск
+        recoverAttempts = 0;
+        nextRecoverAt = 0;
+        lastProgressAt = Date.now();
+        lastTime = 0;
+        hasStartedCurrentVideo = false;
+        transitionInProgress = false;
+        stopHeartbeat();
+    }
+
+    function tick() {
         if (localStorage.getItem(STORAGE_KEY) === 'false') return;
         if (!onWatchPage()) return;
 
@@ -790,185 +1007,104 @@
         }
 
         try {
-            const iframeDoc = player.doc;
+            const { video, doc } = player;
+            const now = Date.now();
             const currentEp = getCurrentEpisode(player);
             const animeId = getAnimeId();
-            const video = player.video;
+            const totalEps = getTotalEpisodes();
+            const volText = savedVolume === 0 ? t('muted') : `${Math.round(savedVolume * 100)}%`;
 
+            hookUserActions(doc);
+            hookVideo(video);
             applyPauseFix(video);
             applyVolumeSync(video);
             applySpeed(video);
 
+            // Смена серии — полный сброс
             const episodeKey = `${animeId}:${currentEp}`;
-            if (video !== lastVideoEl || episodeKey !== lastEpisodeKey) {
-                lastVideoEl = video;
+            if (episodeKey !== lastEpisodeKey) {
                 lastEpisodeKey = episodeKey;
-                if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-                transitionInProgress = false;
-                lastTime = 0;
-                pauseActionState = 0;
-                pauseActionTime = 0;
-                hasStartedCurrentVideo = false;
-
-                applySpeed(video);
+                resetEpisodeState();
             }
 
-            if (video.currentTime > 2) {
-                hasStartedCurrentVideo = true;
+            // Смена элемента video (например, после перезагрузки плеера) — только локальный сброс
+            if (video !== lastVideoEl) {
+                lastVideoEl = video;
+                lastTime = video.currentTime;
+                lastProgressAt = now;
+                nextRecoverAt = 0;
+                stopHeartbeat();
             }
+
+            if (video.currentTime > 2) hasStartedCurrentVideo = true;
 
             if (!video.paused && !video.ended && video.currentTime > 0 && animeId) {
                 if (!heartbeatTimer) startHeartbeat(video, animeId, currentEp);
             } else {
-                if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+                stopHeartbeat();
             }
 
-            const totalEps = getTotalEpisodes();
-            const volText = savedVolume === 0 ? t('muted') : `${Math.round(savedVolume * 100)}%`;
-
-            // ЛОГИКА ОКОНЧАНИЯ ВИДЕО
+            // Конец серии
             if (video.ended || (video.duration > 0 && video.currentTime >= video.duration - 1.5)) {
-                if (transitionInProgress) return;
-                transitionInProgress = true;
-                lastTransitionAttempt = Date.now();
-
-                // 1. ПРИОРИТЕТ: Нативная кнопка "Следующая серия" от плеера
-                const nativeBtn = findNativeNextButton();
-                if (nativeBtn) {
-                    updateStatus(`Нативная кнопка`, 'active');
-                    clickElement(nativeBtn);
-                    setTimeout(() => { transitionInProgress = false; }, 8000);
-                    return;
-                }
-
-                // 2. ПРИОРИТЕТ: Клик по серии в боковом меню
-                const nextLink = findEpisodeLink(currentEp + 1);
-
-                if (nextLink) {
-                    updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
-                    openEpisode(nextLink, currentEp);
-                    setTimeout(() => { transitionInProgress = false; }, 8000);
-                } else {
-                    // 3. ПРИОРИТЕТ: Очередь
-                    const activeMarkers = Array.from(document.querySelectorAll('span, div, p')).filter(el => el.textContent?.trim() === 'Сейчас смотришь' && el.children.length === 0);
-                    const card = activeMarkers.length > 0 ? (activeMarkers[0].closest('a') || activeMarkers[0].closest('[role="button"]') || activeMarkers[0].parentElement?.parentElement) : null;
-                    const nextCard = card ? /** @type {HTMLElement|null} */ (card.nextElementSibling) : null;
-
-                    if (nextCard) {
-                        updateStatus(`${t('nextEp')} ${currentEp + 1}...`, 'active');
-                        clickElement(nextCard);
-                        setTimeout(() => { transitionInProgress = false; }, 8000);
-                    } else if (queue.length > 0) {
-                        const nextItem = queue.shift();
-                        if (nextItem) {
-                            saveQueue();
-                            updateStatus(`${t('transition')}: ${nextItem.title}`, 'active');
-                            setTimeout(() => { window.location.href = nextItem.url; }, 1500);
-                        }
-                    } else {
-                        updateStatus(t('endSeason'), 'error');
-                        setTimeout(() => { transitionInProgress = false; }, 5000);
-                    }
-                }
+                handleEnded(player, currentEp);
                 return;
             }
 
-            if (video.paused && !video.ended) {
-                if (hasStartedCurrentVideo) {
-                    updateStatus(`${t('pause')} (${currentEp}/${totalEps})`, 'normal');
-                    pauseActionState = 0;
-                    pauseActionTime = 0;
-                } else {
-                    if (pauseActionState === 0) {
-                        const resumeBtn = findResumeButton(iframeDoc);
-                        const isResumeVisible = resumeBtn && (resumeBtn.offsetParent !== null || (iframeDoc.defaultView && iframeDoc.defaultView.getComputedStyle(resumeBtn).display !== 'none'));
-
-                        if (isResumeVisible && resumeBtn) {
-                            const timeMatch = resumeBtn.textContent?.match(/\d+:\d+/);
-                            updateStatus(`${t('resume')}: ${timeMatch ? timeMatch[0] : ''}`, 'active');
-                            clickElement(resumeBtn);
-                            pauseActionState = 2;
-                            pauseActionTime = Date.now();
-                        } else {
-                            updateStatus(t('pressPlay'), 'active');
-                            const playBtn = findPlayButton(iframeDoc);
-                            if (playBtn) clickElement(playBtn);
-                            else clickElement(video);
-
-                            tryPlay(video);
-                            pauseActionState = 1;
-                            pauseActionTime = Date.now();
-                        }
-                    }
-                    else if (pauseActionState === 1) {
-                        if (Date.now() - pauseActionTime > 3000) {
-                            const playBtn = findPlayButton(iframeDoc);
-                            updateStatus(t('kickVideo'), 'active');
-                            if (playBtn) clickElement(playBtn);
-                            else clickElement(video);
-
-                            tryPlay(video);
-                            pauseActionState = 2;
-                            pauseActionTime = Date.now();
-                        } else {
-                            updateStatus(t('loading'), 'normal');
-                        }
-                    }
-                    else if (pauseActionState === 2) {
-                        if (Date.now() - pauseActionTime > 3000) {
-                            updateStatus(t('repeatPlay'), 'active');
-                            clickElement(video);
-                            tryPlay(video);
-                            pauseActionState = 3;
-                            pauseActionTime = Date.now();
-                        } else {
-                            updateStatus(t('loading'), 'normal');
-                        }
-                    }
-                    else if (pauseActionState === 3) {
-                        const wait = Math.floor((20000 - (Date.now() - pauseActionTime)) / 1000);
-                        if (wait <= 0) {
-                            updateStatus(t('repeatPlay'), 'active');
-                            const playBtn = findPlayButton(iframeDoc);
-                            if (playBtn) clickElement(playBtn);
-                            else clickElement(video);
-                            tryPlay(video);
-                            pauseActionState = 2;
-                            pauseActionTime = Date.now();
-                        } else {
-                            updateStatus(`${t('waiting')} ${wait}c...`, 'error');
-                        }
-                    }
-                }
-            } else {
-                pauseActionState = 0;
-                pauseActionTime = 0;
-
-                if (video.currentTime > 0 && !needsUserClickToPlay) {
-                    updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
-                }
-
-                if (Math.abs(video.currentTime - lastTime) < 0.1) {
-                    if (pauseActionTime === 0) pauseActionTime = Date.now();
-                    const secPassed = Math.floor((Date.now() - pauseActionTime) / 1000);
-                    if (secPassed > 20) {
-                        updateStatus(t('buffering'), 'error');
-                        const playBtn = findPlayButton(iframeDoc);
-                        if (playBtn) clickElement(playBtn);
-                        else clickElement(video);
-                        tryPlay(video);
-                        pauseActionTime = 0;
-                    }
-                } else {
-                    pauseActionTime = 0;
-                }
+            // Фиксация прогресса
+            if (!video.paused && Math.abs(video.currentTime - lastTime) > 0.05) {
+                lastTime = video.currentTime;
+                lastProgressAt = now;
+                recoverAttempts = 0;
             }
-            lastTime = video.currentTime;
 
+            // Пользователь сам поставил паузу — ничего не делаем
+            if (!wantPlaying) {
+                recoverAttempts = 0;
+                updateStatus(`${t('pause')} (${currentEp}/${totalEps})`, 'normal');
+                return;
+            }
+
+            // Всё идёт нормально
+            const stalledFor = now - lastProgressAt;
+            if (!video.paused && !video.error && stalledFor < STALL_MS) {
+                updateStatus(`${t('watching')} ${currentEp}/${totalEps} | ${volText}`, 'normal');
+                return;
+            }
+
+            // Пауза не пользовательская / зависание / ошибка — восстанавливаем
+            if (recovering) {
+                updateStatus(`${t('recovering')} #${recoverAttempts}`, 'active');
+                return;
+            }
+
+            if (now < nextRecoverAt) {
+                const wait = Math.ceil((nextRecoverAt - now) / 1000);
+                updateStatus(`${t('reconnecting')} ${wait}c...`, 'error');
+                return;
+            }
+
+            recover(player);
         } catch (e) {
-            logError('Main automation loop', /** @type {Error} */(e));
+            logError('Main automation loop', /** @type {Error} */ (e));
         }
-    }, 1000);
+    }
+
+    /**
+     * Таймер в Web Worker: фоновые вкладки и спящий экран не душат его так,
+     * как обычный setInterval. Если Worker заблокирован, используется setInterval.
+     */
+    function startTicker(fn, ms) {
+        try {
+            const src = `setInterval(function(){ postMessage(0); }, ${ms});`;
+            const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+            const worker = new Worker(url);
+            worker.onmessage = () => fn();
+            return;
+        } catch (e) {}
+        setInterval(fn, ms);
+    }
+
+    startTicker(tick, 1000);
 })();
 
 
