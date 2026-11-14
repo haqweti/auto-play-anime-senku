@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.6.2
-// @description  Автозапуск, нативный переход, умная очередь, авто-восстановление после обрыва сети и сна, контроль скорости
+// @version      3.6.5
+// @description  Автозапуск, нативный переход, очередь, авто-восстановление после обрыва сети и сна, пауза кнопкой и пробелом, панель в полноэкранном режиме
 // @author       mikuro
 // @match        *://senku.one/*
 // @match        *://*.senku.one/*
@@ -33,7 +33,8 @@
             resetConfirm: 'Сбросить все настройки плагина?', clearConfirm: 'Очистить всю очередь?',
             animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость',
             reconnecting: 'Переподключение', noNet: 'Нет сети, жду...', checkingNet: 'Проверка сети...',
-            recovering: 'Восстановление', nativeNext: 'Нативная кнопка', reloading: 'Перезагрузка страницы...'
+            recovering: 'Восстановление', nativeNext: 'Нативная кнопка', reloading: 'Перезагрузка страницы...',
+            pauseBtn: 'Пауза / продолжить (Пробел)', manualPause: 'Пауза (вручную)', playBtn: 'Продолжить (Пробел)' // [CHANGE]
         },
         en: {
             waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
@@ -45,7 +46,8 @@
             resetConfirm: 'Reset all plugin settings?', clearConfirm: 'Clear the entire queue?',
             animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed',
             reconnecting: 'Reconnecting', noNet: 'No network, waiting...', checkingNet: 'Checking network...',
-            recovering: 'Recovering', nativeNext: 'Native next button', reloading: 'Reloading page...'
+            recovering: 'Recovering', nativeNext: 'Native next button', reloading: 'Reloading page...',
+            pauseBtn: 'Pause / play (Space)', manualPause: 'Paused (manual)', playBtn: 'Play (Space)' // [CHANGE]
         }
     };
     const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
@@ -58,7 +60,8 @@
 
     // Сколько секунд без прогресса считаем зависанием
     const STALL_MS = 6000;
-    // Если пауза произошла в течение этого окна после действия пользователя — пауза пользовательская
+    // Если пауза произошла в течение этого окна после действия пользователя — пауза пользовательская.
+    // 1500 мс: с запасом покрывает задержку между pointerdown/keydown и реальным событием pause у плеера.
     const USER_ACTION_WINDOW = 1500;
 
     // Перезагрузка страницы, если восстановление не помогает
@@ -69,12 +72,15 @@
     const RELOAD_WINDOW_MS = 30 * 60e3;     // за это окно
     const RELOAD_MIN_GAP_MS = 2 * 60e3;     // и не чаще, чем раз в 2 минуты
 
+    const SVG_NS = 'http://www.w3.org/2000/svg'; // [CHANGE] для иконок кнопки паузы
+
     let needsUserClickToPlay = false;
     let userInteracted = false;
     let heartbeatTimer = null;
 
     // --- состояние восстановления ---
     let wantPlaying = false;        // true = пользователь хочет смотреть (пауза не его)
+    let manualPause = false;        // [CHANGE] true = пользователь сам поставил паузу кнопкой/пробелом
     let lastUserActionAt = 0;       // время последнего действия пользователя
     let lastProgressAt = 0;         // когда последний раз видео реально продвинулось
     let recoverAttempts = 0;        // номер текущей попытки восстановления
@@ -132,6 +138,7 @@
     }
 
     const style = document.createElement('style');
+    style.id = 'senku-style'; // [CHANGE] id нужен, чтобы клонировать стили в документ полноэкранного iframe
     style.textContent = `
         #senku-autonext-panel {
             position: fixed !important; top: 15px !important; right: 15px !important; left: auto !important; bottom: auto !important;
@@ -174,6 +181,16 @@
         #senku-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
 
         .senku-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; flex-shrink: 0; }
+
+        /* [CHANGE] кнопка паузы/продолжения */
+        .senku-pause-btn {
+            background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border: 1px solid transparent;
+            border-radius: 8px; width: 30px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s; margin-left: 4px; flex-shrink: 0;
+        }
+        .senku-pause-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        .senku-pause-btn.active { color: #ff3b47; border-color: rgba(255,59,71,0.35); }
+        .senku-pause-icon { width: 12px; height: 12px; fill: currentColor; stroke: none; }
 
         .senku-speed-btn {
             background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border: 1px solid transparent;
@@ -231,7 +248,7 @@
 
     const triggerBtn = document.createElement('div');
     triggerBtn.id = 'senku-trigger-btn';
-    const iconPlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const iconPlay = document.createElementNS(SVG_NS, 'svg');
     iconPlay.setAttribute('class', 'senku-icon');
     iconPlay.setAttribute('viewBox', '0 0 24 24');
     iconPlay.innerHTML = '<polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line>';
@@ -249,7 +266,7 @@
 
     const volContainer = document.createElement('div');
     volContainer.className = 'senku-volume-wrap';
-    const volIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const volIcon = document.createElementNS(SVG_NS, 'svg');
     volIcon.setAttribute('class', 'senku-vol-icon');
     volIcon.setAttribute('viewBox', '0 0 24 24');
     volIcon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>';
@@ -280,6 +297,22 @@
     volContainer.appendChild(volIcon);
     volContainer.appendChild(volSlider);
 
+    // [CHANGE] КНОПКА ПАУЗЫ / ПРОДОЛЖЕНИЯ
+    const pauseIcon = document.createElementNS(SVG_NS, 'svg');
+    pauseIcon.setAttribute('class', 'senku-pause-icon');
+    pauseIcon.setAttribute('viewBox', '0 0 24 24');
+    pauseIcon.innerHTML = '<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>';
+
+    const playIcon = document.createElementNS(SVG_NS, 'svg');
+    playIcon.setAttribute('class', 'senku-pause-icon');
+    playIcon.setAttribute('viewBox', '0 0 24 24');
+    playIcon.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"></polygon>';
+
+    const pauseBtn = document.createElement('button');
+    pauseBtn.className = 'senku-pause-btn';
+    pauseBtn.title = t('pauseBtn');
+    pauseBtn.appendChild(pauseIcon);
+
     // КНОПКА СКОРОСТИ
     const speedBtn = document.createElement('button');
     speedBtn.className = 'senku-speed-btn';
@@ -304,7 +337,7 @@
         }
     });
 
-    const iconQueue = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const iconQueue = document.createElementNS(SVG_NS, 'svg');
     iconQueue.setAttribute('class', 'senku-queue-icon');
     iconQueue.setAttribute('viewBox', '0 0 24 24');
     iconQueue.innerHTML = '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>';
@@ -334,6 +367,7 @@
     contentWrap.appendChild(statusText);
     contentWrap.appendChild(divider);
     contentWrap.appendChild(volContainer);
+    contentWrap.appendChild(pauseBtn);   // [CHANGE]
     contentWrap.appendChild(speedBtn);
     contentWrap.appendChild(iconQueue);
     contentWrap.appendChild(toggleBtn);
@@ -530,19 +564,64 @@
 
     renderQueue();
 
-    // --- 5. ДОБАВЛЕНИЕ НА СТРАНИЦУ ---
+    // --- 5. РАЗМЕЩЕНИЕ ПАНЕЛИ (обычный режим / полный экран) ---
+
+    /** [CHANGE] Копирует стили панели в документ, где сейчас показываем панель (iframe в fullscreen). */
+    function ensureStyleIn(doc) {
+        if (doc === document) return;
+        if (doc.getElementById('senku-style-clone')) return;
+        const clone = /** @type {HTMLStyleElement} */ (style.cloneNode(true));
+        clone.id = 'senku-style-clone';
+        (doc.head || doc.documentElement).appendChild(clone);
+    }
+
+    /**
+     * [CHANGE] Определяет, что сейчас показано на весь экран.
+     * Если полноэкранный элемент — iframe плеера, панель кладём внутрь документа iframe.
+     * Возвращает null, если полного экрана нет или iframe недоступен (cross-origin).
+     */
+    function getFullscreenTarget() {
+        const fs = document.fullscreenElement;
+        if (!fs) return null;
+        if (fs.tagName === 'IFRAME') {
+            try {
+                const d = /** @type {HTMLIFrameElement} */ (fs).contentDocument;
+                if (d) return { doc: d, host: d.fullscreenElement || d.body };
+            } catch (e) {}
+        }
+        return { doc: document, host: fs };
+    }
+
+    /** [CHANGE] Переносит панель и модалку очереди туда, где их видно: в fullscreen или обратно на body. */
+    function syncPanelHost() {
+        if (!onWatchPage()) return;
+        const target = getFullscreenTarget();
+        const host = target ? target.host : document.body;
+        const hostDoc = target ? target.doc : document;
+        if (!host) return;
+        if (panel.parentNode === host && queueModal.parentNode === host) return;
+
+        const wasOut = !panel.isConnected;
+        ensureStyleIn(hostDoc);
+        host.appendChild(panel);
+        host.appendChild(queueModal);
+        if (wasOut) updateButtonState();
+    }
+
     function addPanel() {
         if (!onWatchPage()) {
             if (panel.isConnected) panel.remove();
             if (queueModal.isConnected) queueModal.remove();
             return;
         }
-        if (!document.getElementById('senku-autonext-panel')) { document.body.appendChild(panel); updateButtonState(); }
-        if (!document.getElementById('senku-queue-modal')) { document.body.appendChild(queueModal); }
+        syncPanelHost(); // [CHANGE] раньше проверяли getElementById, что не видит панель внутри iframe
     }
     const bodyObserver = new MutationObserver(addPanel);
     bodyObserver.observe(document.body, { childList: true, subtree: true });
     addPanel();
+
+    // [CHANGE] Переход в полный экран и обратно: сразу переносим панель
+    document.addEventListener('fullscreenchange', syncPanelHost);
 
     triggerBtn.addEventListener('click', () => {
         panel.classList.toggle('collapsed');
@@ -693,34 +772,131 @@
         if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
     }
 
-    // --- 8. ОТСЛЕЖИВАНИЕ ДЕЙСТВИЙ ПОЛЬЗОВАТЕЛЯ И СОБЫТИЙ ВИДЕО ---
+    // --- 8. ОТСЛЕЖИВАНИЕ ДЕЙСТВИЙ, ПАУЗА, ПРОБЕЛ ---
     function markUserAction() {
         lastUserActionAt = Date.now();
     }
 
+    /**
+     * [CHANGE] Пробел: пауза / продолжение.
+     * Перехват в capture-фазе на window документа, чтобы нативный обработчик плеера
+     * не сработал во второй раз (иначе пауза и тут же возврат).
+     * Поля ввода и модалка очереди не затрагиваются.
+     */
+    function onKeyToggle(e) {
+        if (e.key !== ' ' && e.code !== 'Space') return;
+        if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (!onWatchPage()) return;
+
+        const target = /** @type {HTMLElement|null} */ (e.target);
+        let tag = '';
+        if (target && target.nodeType === 1) {
+            tag = target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
+            if (queueModal.contains(target)) return;
+        }
+
+        const player = findPlayer();
+        if (!player) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (tag === 'BUTTON' || tag === 'A') target.blur(); // иначе Space ещё раз нажмёт кнопку
+        togglePlayback(player);
+    }
+
+    /**
+     * [CHANGE] Переключение паузы пользователем (кнопка или пробел).
+     * manualPause = true: скрипт не восстанавливает воспроизведение и не даёт плееру продолжить сам.
+     */
+    function togglePlayback(player) {
+        const { video } = player;
+        markUserAction();
+        if (video.paused) {
+            manualPause = false;
+            wantPlaying = true;
+            lastProgressAt = Date.now();
+            recoverAttempts = 0;
+            nextRecoverAt = 0;
+            tryPlay(video);
+            updateStatus(t('resume'), 'active');
+        } else {
+            manualPause = true;
+            wantPlaying = false;
+            video.pause();
+        }
+        updatePauseButton(video.paused);
+    }
+
+    // [CHANGE] Иконка и подсказка кнопки паузы
+    let lastPauseKey = '';
+    function updatePauseButton(isPaused) {
+        const key = `${isPaused}|${manualPause}`;
+        if (key === lastPauseKey) return;
+        lastPauseKey = key;
+        pauseBtn.replaceChildren(isPaused ? playIcon : pauseIcon);
+        pauseBtn.title = isPaused ? t('playBtn') : t('pauseBtn');
+        pauseBtn.classList.toggle('active', manualPause);
+    }
+
+    pauseBtn.addEventListener('click', () => {
+        const player = findPlayer();
+        if (!player) { updateStatus(t('searching'), 'error'); return; }
+        togglePlayback(player);
+        pauseBtn.blur();
+    });
+
     function hookUserActions(doc) {
         if (!doc || hookedDocs.has(doc)) return;
         hookedDocs.add(doc);
-        ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
+        ['pointerdown', 'touchstart'].forEach(ev =>
             doc.addEventListener(ev, markUserAction, { capture: true, passive: true })
         );
+        // [CHANGE] клавиши ловим на window документа (раньше, чем обработчики плеера)
+        const win = doc.defaultView || window;
+        win.addEventListener('keydown', onKeyToggle, { capture: true });
+        // [CHANGE] для iframe: вход/выход из полного экрана внутри плеера
+        doc.addEventListener('fullscreenchange', syncPanelHost);
     }
 
     /**
      * Пауза считается пользовательской, если она случилась сразу после действия
-     * пользователя. Всё остальное (сон ноутбука, обрыв сети, сбой плеера) — не его пауза,
+     * пользователя ИЛИ пользователь поставил её кнопкой/пробелом (manualPause).
+     * Всё остальное (сон ноутбука, обрыв сети, сбой плеера) — не его пауза,
      * и скрипт будет пытаться продолжить воспроизведение.
      */
     function hookVideo(video) {
         if (video.dataset.senkuHooked === 'true') return;
         video.dataset.senkuHooked = 'true';
 
-        video.addEventListener('play', () => { wantPlaying = true; });
-        video.addEventListener('playing', () => { wantPlaying = true; });
+        video.addEventListener('play', () => {
+            if (manualPause) {
+                // [CHANGE] Плеер сам не имеет права продолжить после паузы пользователя.
+                // Снимаем паузу только если play пришёл сразу после действия пользователя (клик по видео).
+                if (Date.now() - lastUserActionAt < USER_ACTION_WINDOW) {
+                    manualPause = false;
+                    wantPlaying = true;
+                } else {
+                    video.pause();
+                    return;
+                }
+            } else {
+                wantPlaying = true;
+            }
+            updatePauseButton(false);
+        });
+
+        video.addEventListener('playing', () => {
+            if (!manualPause) wantPlaying = true;
+        });
+
         video.addEventListener('pause', () => {
             if (video.ended || video.seeking) return;
-            if (Date.now() - lastUserActionAt < USER_ACTION_WINDOW) wantPlaying = false;
+            // [CHANGE] manualPause тоже делает паузу пользовательской
+            if (manualPause || Date.now() - lastUserActionAt < USER_ACTION_WINDOW) wantPlaying = false;
+            updatePauseButton(true);
         });
+
         video.addEventListener('ended', () => { wantPlaying = false; });
     }
 
@@ -735,6 +911,8 @@
         });
 
         video.addEventListener('pause', () => {
+            // [CHANGE] при паузе пользователя время не откатываем
+            if (manualPause) return;
             if (lastValidTime > 1 && !video.ended) {
                 const timeToRestore = lastValidTime;
                 const restore = () => {
@@ -1023,6 +1201,7 @@
     // --- 11. ГЛАВНЫЙ ЦИКЛ ---
     function resetEpisodeState() {
         wantPlaying = true;          // на новой серии хотим автозапуск
+        manualPause = false;         // [CHANGE] новая серия — пауза пользователя больше не действует
         recoverAttempts = 0;
         nextRecoverAt = 0;
         lastProgressAt = Date.now();
@@ -1033,6 +1212,7 @@
     }
 
     function tick() {
+        syncPanelHost(); // [CHANGE] панель должна переехать даже если плагин выключен
         if (localStorage.getItem(STORAGE_KEY) === 'false') return;
         if (!onWatchPage()) return;
 
@@ -1050,6 +1230,7 @@
             const totalEps = getTotalEpisodes();
             const volText = savedVolume === 0 ? t('muted') : `${Math.round(savedVolume * 100)}%`;
 
+            hookUserActions(document);   // [CHANGE] клавиши на странице
             hookUserActions(doc);
             hookVideo(video);
             applyPauseFix(video);
@@ -1072,6 +1253,10 @@
                 stopHeartbeat();
             }
 
+            // [CHANGE] Если пользователь на паузе, а плеер сам поехал — возвращаем паузу
+            if (manualPause && !video.paused) video.pause();
+            updatePauseButton(video.paused);
+
             if (video.currentTime > 2) hasStartedCurrentVideo = true;
 
             if (!video.paused && !video.ended && video.currentTime > 0 && animeId) {
@@ -1093,10 +1278,11 @@
                 recoverAttempts = 0;
             }
 
-            // Пользователь сам поставил паузу — ничего не делаем
+            // Пользователь сам поставил паузу (кнопкой, пробелом или кликом) — ничего не делаем
             if (!wantPlaying) {
                 recoverAttempts = 0;
-                updateStatus(`${t('pause')} (${currentEp}/${totalEps})`, 'normal');
+                // [CHANGE] отдельная подпись для паузы, выбранной вручную
+                updateStatus(`${manualPause ? t('manualPause') : t('pause')} (${currentEp}/${totalEps})`, 'normal');
                 return;
             }
 
@@ -1151,5 +1337,4 @@
 
     startTicker(tick, 1000);
 })();
-
 
