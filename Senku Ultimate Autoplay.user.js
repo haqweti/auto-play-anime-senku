@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.6.0
+// @version      3.6.2
 // @description  Автозапуск, нативный переход, умная очередь, авто-восстановление после обрыва сети и сна, контроль скорости
 // @author       mikuro
 // @match        *://senku.one/*
@@ -33,7 +33,7 @@
             resetConfirm: 'Сбросить все настройки плагина?', clearConfirm: 'Очистить всю очередь?',
             animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость',
             reconnecting: 'Переподключение', noNet: 'Нет сети, жду...', checkingNet: 'Проверка сети...',
-            recovering: 'Восстановление', nativeNext: 'Нативная кнопка'
+            recovering: 'Восстановление', nativeNext: 'Нативная кнопка', reloading: 'Перезагрузка страницы...'
         },
         en: {
             waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
@@ -45,7 +45,7 @@
             resetConfirm: 'Reset all plugin settings?', clearConfirm: 'Clear the entire queue?',
             animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed',
             reconnecting: 'Reconnecting', noNet: 'No network, waiting...', checkingNet: 'Checking network...',
-            recovering: 'Recovering', nativeNext: 'Native next button'
+            recovering: 'Recovering', nativeNext: 'Native next button', reloading: 'Reloading page...'
         }
     };
     const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
@@ -60,6 +60,14 @@
     const STALL_MS = 6000;
     // Если пауза произошла в течение этого окна после действия пользователя — пауза пользовательская
     const USER_ACTION_WINDOW = 1500;
+
+    // Перезагрузка страницы, если восстановление не помогает
+    const RELOAD_LOG_KEY = 'senku_net_reload_log';
+    const RELOAD_AFTER_ATTEMPTS = 3;        // сколько неудачных попыток подряд
+    const RELOAD_AFTER_STALL_MS = 25000;    // сколько без прогресса
+    const RELOAD_MAX = 3;                   // максимум перезагрузок
+    const RELOAD_WINDOW_MS = 30 * 60e3;     // за это окно
+    const RELOAD_MIN_GAP_MS = 2 * 60e3;     // и не чаще, чем раз в 2 минуты
 
     let needsUserClickToPlay = false;
     let userInteracted = false;
@@ -918,6 +926,34 @@
         }
     }
 
+    // --- ПЕРЕЗАГРУЗКА СТРАНИЦЫ (запасной вариант) ---
+    function readReloadLog() {
+        try {
+            const now = Date.now();
+            const log = JSON.parse(sessionStorage.getItem(RELOAD_LOG_KEY) || '[]');
+            return Array.isArray(log) ? log.filter(ts => now - ts < RELOAD_WINDOW_MS) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function canReloadPage() {
+        const log = readReloadLog();
+        if (log.length >= RELOAD_MAX) return false;
+        if (log.length && Date.now() - log[log.length - 1] < RELOAD_MIN_GAP_MS) return false;
+        return true;
+    }
+
+    function reloadPage() {
+        const log = readReloadLog();
+        log.push(Date.now());
+        try {
+            sessionStorage.setItem(RELOAD_LOG_KEY, JSON.stringify(log));
+        } catch (e) {}
+        updateStatus(t('reloading'), 'error');
+        setTimeout(() => location.reload(), 1500);
+    }
+
     // Возврат сети, пробуждение экрана и фокус — сразу пробуем восстановиться
     window.addEventListener('online', () => { nextRecoverAt = 0; });
     window.addEventListener('offline', () => updateStatus(t('noNet'), 'error'));
@@ -1074,6 +1110,15 @@
             // Пауза не пользовательская / зависание / ошибка — восстанавливаем
             if (recovering) {
                 updateStatus(`${t('recovering')} #${recoverAttempts}`, 'active');
+                return;
+            }
+
+            // Восстановление не помогает несколько попыток подряд — перезагружаем страницу
+            if (recoverAttempts >= RELOAD_AFTER_ATTEMPTS &&
+                stalledFor >= RELOAD_AFTER_STALL_MS &&
+                navigator.onLine &&
+                canReloadPage()) {
+                reloadPage();
                 return;
             }
 
