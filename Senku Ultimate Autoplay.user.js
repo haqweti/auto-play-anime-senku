@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Senku Ultimate Autoplay
 // @namespace    http://tampermonkey.net/
-// @version      3.6.5
+// @version      3.6.6
 // @description  Автозапуск, нативный переход, очередь, авто-восстановление после обрыва сети и сна, пауза кнопкой и пробелом, панель в полноэкранном режиме
 // @author       mikuro
 // @match        *://senku.one/*
@@ -34,7 +34,9 @@
             animeId: 'Аниме (ID:', linkText: 'Ссылка', searching: 'Поиск плеера...', speed: 'Скорость',
             reconnecting: 'Переподключение', noNet: 'Нет сети, жду...', checkingNet: 'Проверка сети...',
             recovering: 'Восстановление', nativeNext: 'Нативная кнопка', reloading: 'Перезагрузка страницы...',
-            pauseBtn: 'Пауза / продолжить (Пробел)', manualPause: 'Пауза (вручную)', playBtn: 'Продолжить (Пробел)' // [CHANGE]
+            pauseBtn: 'Пауза / продолжить (Пробел)', manualPause: 'Пауза (вручную)', playBtn: 'Продолжить (Пробел)', // [CHANGE]
+            noEpisode: 'Серий нет, пропускаю', noEpisodeEnd: 'Серий нет, очередь пуста', // [CHANGE]
+            noEpisodeLog: 'На тайтле нет серий' // [CHANGE]
         },
         en: {
             waiting: 'Waiting...', watching: 'Watching', muted: 'Muted', queue: 'Queue',
@@ -47,7 +49,9 @@
             animeId: 'Anime (ID:', linkText: 'Link', searching: 'Searching player...', speed: 'Speed',
             reconnecting: 'Reconnecting', noNet: 'No network, waiting...', checkingNet: 'Checking network...',
             recovering: 'Recovering', nativeNext: 'Native next button', reloading: 'Reloading page...',
-            pauseBtn: 'Pause / play (Space)', manualPause: 'Paused (manual)', playBtn: 'Play (Space)' // [CHANGE]
+            pauseBtn: 'Pause / play (Space)', manualPause: 'Paused (manual)', playBtn: 'Play (Space)', // [CHANGE]
+            noEpisode: 'No episodes, skipping', noEpisodeEnd: 'No episodes, queue is empty', // [CHANGE]
+            noEpisodeLog: 'Title has no episodes' // [CHANGE]
         }
     };
     const t = (key) => lang[isRussian ? 'ru' : 'en'][key];
@@ -72,6 +76,12 @@
     const RELOAD_WINDOW_MS = 30 * 60e3;     // за это окно
     const RELOAD_MIN_GAP_MS = 2 * 60e3;     // и не чаще, чем раз в 2 минуты
 
+    // [CHANGE] Если плеер не стартовал за это время, серии на сайте, скорее всего, нет.
+    // 25 с: обычная загрузка плеера укладывается в 5–15 с, запас оставлен на медленную сеть.
+    const NO_EPISODE_MS = 25000;
+    // [CHANGE] Название и ссылка следующего тайтла очереди, чтобы лог показывал нужное аниме после перехода
+    const PENDING_KEY = 'senku_autonext_pending';
+
     const SVG_NS = 'http://www.w3.org/2000/svg'; // [CHANGE] для иконок кнопки паузы
 
     let needsUserClickToPlay = false;
@@ -91,6 +101,8 @@
     let lastEpisodeKey = '';
     let transitionInProgress = false;
     let hasStartedCurrentVideo = false;
+    let startWaitSince = Date.now(); // [CHANGE] с какого момента ждём запуска плеера
+    let deadReported = false;        // [CHANGE] тайтл признан без серий, дальше на нём не работаем
     const hookedDocs = new WeakSet();
 
     function logError(context, error) {
@@ -1145,9 +1157,50 @@
         setTimeout(() => { transitionInProgress = false; }, ms);
     }
 
+    // [CHANGE] Сохраняем следующий тайтл очереди перед переходом, чтобы потом подписать лог
+    function goToQueueItem(item) {
+        try {
+            sessionStorage.setItem(PENDING_KEY, JSON.stringify({ title: item.title, url: item.url }));
+        } catch (e) {}
+        window.location.href = item.url;
+    }
+
+    // [CHANGE] Название для лога: из очереди (если пришли из неё и это тот же тайтл), иначе из заголовка страницы
+    function getLogTitle() {
+        try {
+            const pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null');
+            const pid = pending && pending.url ? String(pending.url).match(/\/watch\/(\d+)/) : null;
+            if (pending && pid && pid[1] === getAnimeId() && pending.title) return String(pending.title);
+        } catch (e) {}
+        return document.title || `ID ${getAnimeId()}`;
+    }
+
+    // [CHANGE] Проверяет, стартует ли серия. Возвращает true, если тайтл нужно пропустить (дальше на нём не работаем).
+    function checkNoEpisodes(player) {
+        if (deadReported) return true;
+        if (hasStartedCurrentVideo) return false;
+        const dead = !player || !!player.video.error || !(player.video.duration > 0);
+        if (!dead) return false;
+        if (Date.now() - startWaitSince < NO_EPISODE_MS) return false;
+
+        deadReported = true;
+        console.warn(`[SENKU] ⚠️ ${t('noEpisodeLog')}: ${getLogTitle()}\nLink: ${window.location.href}`);
+
+        if (queue.length > 0) {
+            const next = queue.shift();
+            saveQueue();
+            updateStatus(`${t('noEpisode')}: ${next.title}`, 'error');
+            setTimeout(() => goToQueueItem(next), 1500); // [CHANGE] пауза 1.5 с как у обычного перехода по очереди
+        } else {
+            updateStatus(t('noEpisodeEnd'), 'error');
+        }
+        return true;
+    }
+
     function handleEnded(player, currentEp) {
         if (transitionInProgress) return;
         transitionInProgress = true;
+        startWaitSince = Date.now();   // [CHANGE] отсчёт ожидания запуска нового тайтла/серии
 
         // 1. Нативная кнопка "Следующая серия"
         const nativeBtn = findNativeNextButton(player);
@@ -1188,7 +1241,7 @@
             if (nextItem) {
                 saveQueue();
                 updateStatus(`${t('transition')}: ${nextItem.title}`, 'active');
-                setTimeout(() => { window.location.href = nextItem.url; }, 1500);
+                setTimeout(() => goToQueueItem(nextItem), 1500); // [CHANGE] сохраняем название для лога
             }
             return;
         }
@@ -1207,6 +1260,8 @@
         lastProgressAt = Date.now();
         lastTime = 0;
         hasStartedCurrentVideo = false;
+        deadReported = false;          // [CHANGE]
+        startWaitSince = Date.now();   // [CHANGE]
         transitionInProgress = false;
         stopHeartbeat();
     }
@@ -1219,6 +1274,7 @@
         const player = findPlayer();
         if (!player) {
             updateStatus(t('searching'), 'error');
+            checkNoEpisodes(null); // [CHANGE] плеера нет совсем: серий, возможно, нет
             return;
         }
 
@@ -1258,6 +1314,7 @@
             updatePauseButton(video.paused);
 
             if (video.currentTime > 2) hasStartedCurrentVideo = true;
+            if (!hasStartedCurrentVideo && checkNoEpisodes(player)) return; // [CHANGE] тайтл без серий — не работаем с ним дальше
 
             if (!video.paused && !video.ended && video.currentTime > 0 && animeId) {
                 if (!heartbeatTimer) startHeartbeat(video, animeId, currentEp);
